@@ -1,0 +1,31 @@
+name: brew test-bot
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Tap this repo
+        run: |
+          mkdir -p "$(brew --repository)/Library/Taps/legionio/homebrew-tap"
+          cp -a . "$(brew --repository)/Library/Taps/legionio/homebrew-tap"
+
+      - name: Install formula
+        run: brew install legionio/tap/legion
+
+      - name: Test formula
+        run: brew test legionio/tap/legion
+
+      - name: Audit formula
+        run: brew audit --strict legionio/tap/legion || true
