@@ -1,5 +1,5 @@
 class Legion < Formula
-  desc "Extensible async job engine for Ruby with plugin-based service integrations"
+  desc "Extensible async job engine and agentic AI framework for Ruby"
   homepage "https://github.com/LegionIO/LegionIO"
   url "https://rubygems.org/downloads/legionio-1.2.1.gem"
   sha256 "959c9c7052eccd9dfe25600f114a318846dc5d473040df8649595cc6bd69dd1d"

@@ -11,9 +11,36 @@ brew install legion
 
 ## Available Formulae
 
-| Formula | Description |
-|---------|-------------|
-| `legion` | Extensible async job engine for Ruby with plugin-based service integrations |
+| Formula | Version | Description |
+|---------|---------|-------------|
+| `legion` | 1.2.1 | Extensible async job engine and agentic AI framework for Ruby |
+
+## Usage
+
+After installing, the `legion` CLI is available:
+
+```bash
+# Start the daemon
+legion start
+
+# Check service status
+legion status
+
+# List installed extensions
+legion lex list
+
+# Run a task
+legion task run http.request.get url:https://example.com
+
+# Start the MCP server (for AI agent integration)
+legion mcp
+```
+
+## Requirements
+
+- macOS with Homebrew
+- Ruby (installed automatically as a dependency)
+- RabbitMQ (required for the job engine — `brew install rabbitmq`)
 
 ## Updating
 
@@ -24,11 +51,15 @@ brew upgrade legion
 
 ## Troubleshooting
 
-If you encounter issues:
-
 ```bash
 brew doctor
 brew reinstall legion
 ```
 
 Report issues at https://github.com/LegionIO/homebrew-tap/issues
+
+## Related
+
+- Main framework: https://github.com/LegionIO/LegionIO
+- GitHub org: https://github.com/LegionIO
+- Install via RubyGems instead: `gem install legionio`
