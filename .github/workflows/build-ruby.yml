@@ -1,0 +1,204 @@
+name: Build Ruby for Legion
+
+on:
+  workflow_dispatch:
+    inputs:
+      ruby_version:
+        description: "Ruby version to build"
+        required: true
+        default: "3.4.8"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-14
+            arch: arm64
+            suffix: darwin-arm64
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      RUBY_VERSION: ${{ inputs.ruby_version }}
+      SUFFIX: ${{ matrix.suffix }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          brew install openssl@3 libyaml rust postgresql@17 mysql-client
+
+      - name: Download Ruby source
+        run: |
+          MINOR="${RUBY_VERSION%.*}"
+          curl -fSL "https://cache.ruby-lang.org/pub/ruby/${MINOR}/ruby-${RUBY_VERSION}.tar.gz" \
+            -o "ruby-${RUBY_VERSION}.tar.gz"
+          tar xzf "ruby-${RUBY_VERSION}.tar.gz"
+
+      - name: Configure and compile Ruby
+        run: |
+          cd "ruby-${RUBY_VERSION}"
+          ./configure \
+            --enable-yjit \
+            --disable-install-doc \
+            --prefix="$GITHUB_WORKSPACE/legion-ruby" \
+            --with-openssl-dir="$(brew --prefix openssl@3)" \
+            --with-libyaml-dir="$(brew --prefix libyaml)"
+          make -j$(sysctl -n hw.ncpu)
+          make install
+
+      - name: Install gems
+        run: |
+          export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
+
+          gem install bundler --no-document
+          gem install legionio legion-data legion-llm --no-document
+          gem install pg --no-document -- \
+            --with-pg-config="$(brew --prefix postgresql@17)/bin/pg_config"
+          gem install mysql2 --no-document -- \
+            --with-mysql-config="$(brew --prefix mysql-client)/bin/mysql_config"
+
+      - name: Vendor native libraries
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/legion-ruby/libexec"
+          LIBEXEC="$GITHUB_WORKSPACE/legion-ruby/libexec"
+
+          PG_LIB="$(brew --prefix postgresql@17)/lib"
+          MYSQL_LIB="$(brew --prefix mysql-client)/lib"
+          SSL_LIB="$(brew --prefix openssl@3)/lib"
+          YAML_LIB="$(brew --prefix libyaml)/lib"
+
+          copy_with_deps() {
+            local src="$1"
+            local name
+            name="$(basename "$src")"
+            if [ ! -f "$LIBEXEC/$name" ]; then
+              cp "$src" "$LIBEXEC/$name"
+              otool -L "$src" | awk '{print $1}' | grep "$(brew --prefix)" | while read -r dep; do
+                if [ -f "$dep" ] && [ "$(basename "$dep")" != "$name" ]; then
+                  copy_with_deps "$dep"
+                fi
+              done
+            fi
+          }
+
+          copy_with_deps "$PG_LIB/libpq.5.dylib"
+          copy_with_deps "$MYSQL_LIB/libmysqlclient.21.dylib"
+          copy_with_deps "$SSL_LIB/libssl.3.dylib"
+          copy_with_deps "$SSL_LIB/libcrypto.3.dylib"
+          copy_with_deps "$YAML_LIB/libyaml-0.2.dylib"
+
+      - name: Rewrite dylib load paths
+        run: |
+          LIBEXEC="$GITHUB_WORKSPACE/legion-ruby/libexec"
+          BREW_PREFIX="$(brew --prefix)"
+
+          # Fix IDs of vendored dylibs to @rpath/basename
+          for dylib in "$LIBEXEC"/*.dylib; do
+            name="$(basename "$dylib")"
+            install_name_tool -id "@rpath/$name" "$dylib"
+          done
+
+          # Fix cross-references between vendored dylibs
+          for dylib in "$LIBEXEC"/*.dylib; do
+            for dep in "$LIBEXEC"/*.dylib; do
+              dep_name="$(basename "$dep")"
+              old_ref="$(otool -L "$dylib" | awk '{print $1}' | grep "${BREW_PREFIX}.*${dep_name}" | head -1)"
+              if [ -n "$old_ref" ]; then
+                install_name_tool -change "$old_ref" "@rpath/$dep_name" "$dylib"
+              fi
+            done
+          done
+
+          # Fix Ruby binary and libruby
+          RUBY_BIN="$GITHUB_WORKSPACE/legion-ruby/bin/ruby"
+          LIBRUBY_PATH="$(find "$GITHUB_WORKSPACE/legion-ruby/lib" -name 'libruby*.dylib' | head -1)"
+
+          for target in "$RUBY_BIN" $LIBRUBY_PATH; do
+            [ -f "$target" ] || continue
+            otool -L "$target" | awk '{print $1}' | grep "$BREW_PREFIX" | while read -r ref; do
+              ref_name="$(basename "$ref")"
+              if [ -f "$LIBEXEC/$ref_name" ]; then
+                install_name_tool -change "$ref" "@rpath/$ref_name" "$target"
+              fi
+            done
+            install_name_tool -add_rpath "@executable_path/../libexec" "$target" 2>/dev/null || true
+            install_name_tool -add_rpath "$LIBEXEC" "$target" 2>/dev/null || true
+          done
+
+          # Fix libruby ID
+          if [ -n "$LIBRUBY_PATH" ]; then
+            libruby_name="$(basename "$LIBRUBY_PATH")"
+            install_name_tool -id "@rpath/$libruby_name" "$LIBRUBY_PATH" 2>/dev/null || true
+          fi
+
+          # Fix all .bundle files
+          find "$GITHUB_WORKSPACE/legion-ruby" -name '*.bundle' | while read -r bundle; do
+            otool -L "$bundle" | awk '{print $1}' | grep "$BREW_PREFIX" | while read -r ref; do
+              ref_name="$(basename "$ref")"
+              if [ -f "$LIBEXEC/$ref_name" ]; then
+                install_name_tool -change "$ref" "@rpath/$ref_name" "$bundle"
+              fi
+            done
+            install_name_tool -add_rpath "@executable_path/../libexec" "$bundle" 2>/dev/null || true
+            install_name_tool -add_rpath "$LIBEXEC" "$bundle" 2>/dev/null || true
+          done
+
+      - name: Verify build
+        run: |
+          export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
+
+          ruby -v
+
+          YJIT_RESULT="$(ruby -e "RubyVM::YJIT.enable; puts RubyVM::YJIT.enabled?")"
+          if [ "$YJIT_RESULT" != "true" ]; then
+            echo "ERROR: YJIT is not enabled (got: $YJIT_RESULT)"
+            exit 1
+          fi
+          echo "YJIT: $YJIT_RESULT"
+
+          ruby -e "require 'oj'; require 'puma'; require 'sqlite3'; puts 'core OK'"
+          ruby -e "require 'pg'; puts 'pg OK'"
+          ruby -e "require 'mysql2'; puts 'mysql2 OK'"
+          ruby -e "require 'legion/version'; puts Legion::VERSION"
+
+          BREW_PREFIX="$(brew --prefix)"
+          BAD_BUNDLES="$(find "$GITHUB_WORKSPACE/legion-ruby" -name '*.bundle' \
+            -exec sh -c 'otool -L "$1" | grep -q "'"$BREW_PREFIX"'" && echo "$1"' _ {} \;)"
+          if [ -n "$BAD_BUNDLES" ]; then
+            echo "ERROR: The following .bundle files still reference Homebrew prefix:"
+            echo "$BAD_BUNDLES"
+            exit 1
+          fi
+          echo "No .bundle files reference Homebrew prefix — OK"
+
+      - name: Package artifact
+        run: |
+          tar czf "legion-ruby-${RUBY_VERSION}-${SUFFIX}.tar.gz" legion-ruby/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: legion-ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}
+          path: legion-ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}.tar.gz
+          retention-days: 30
+
+      - name: Create GitHub Release
+        run: |
+          TAG="ruby-${RUBY_VERSION}"
+
+          # Delete existing release if present (rebuilding)
+          gh release delete "$TAG" --yes 2>/dev/null || true
+
+          gh release create "$TAG" \
+            --title "Ruby ${RUBY_VERSION} (${SUFFIX})" \
+            --notes "Pre-compiled Ruby ${RUBY_VERSION} for Legion on ${SUFFIX}. Includes YJIT, pg, mysql2, and all Legion gems." \
+            "legion-ruby-${RUBY_VERSION}-${SUFFIX}.tar.gz"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

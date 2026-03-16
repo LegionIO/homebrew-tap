@@ -1,11 +1,11 @@
 class Legion < Formula
-  desc "Extensible async job engine and agentic AI framework for Ruby"
+  desc "Extensible async job engine and agentic AI framework"
   homepage "https://github.com/LegionIO/LegionIO"
-  url "https://rubygems.org/downloads/legionio-1.4.8.gem"
-  sha256 "e58db552597d3ecbaa8598ac512b0af491c679213f1c9197c22286c1f3064892"
+  url "https://github.com/LegionIO/homebrew-tap/releases/download/ruby-3.4.8/legion-ruby-3.4.8-darwin-arm64.tar.gz"
+  sha256 "PLACEHOLDER_UNTIL_FIRST_BUILD"
+  version "3.4.8-1"
   license "Apache-2.0"
 
-  depends_on "ruby"
   depends_on "redis"
   depends_on "ollama" => :optional
   depends_on "postgresql@17" => :optional
@@ -13,25 +13,29 @@ class Legion < Formula
   depends_on "vault" => :optional
 
   def install
-    ENV["GEM_HOME"] = libexec
-    ENV["GEM_PATH"] = libexec
+    libexec.install Dir["legion-ruby/*"]
 
-    system "gem", "install", "--no-document", "--install-dir", libexec, cached_download
+    env = {
+      PATH: "#{libexec}/bin:$PATH",
+      GEM_HOME: Dir[libexec/"lib/ruby/gems/*"].first,
+      GEM_PATH: Dir[libexec/"lib/ruby/gems/*"].first,
+      DYLD_FALLBACK_LIBRARY_PATH: libexec/"libexec"
+    }
 
-    bin.install Dir[libexec/"bin/*"]
-    bin.env_script_all_files(libexec/"bin", GEM_HOME: libexec, GEM_PATH: libexec)
+    (bin/"legion").write_env_script libexec/"bin/legion", env
 
     (var/"log/legion").mkpath
     (var/"lib/legion").mkpath
     (var/"run").mkpath
 
-    # Install example config files to share/ for post_install to copy
-    (share/"legionio/examples").install_symlink [] # ensure dir exists
     (share/"legionio/examples").mkpath
     write_example_configs(share/"legionio/examples")
   end
 
   def post_install
+    system libexec/"bin/gem", "update", "legionio", "legion-data", "legion-llm",
+           "--no-document"
+
     config_dir = Pathname.new(Dir.home)/".legionio/settings"
     config_dir.mkpath
 
@@ -55,6 +59,8 @@ class Legion < Formula
       Logs:    #{var}/log/legion/legion.log
       Data:    #{var}/lib/legion/
 
+      Ruby 3.4.8 with YJIT is bundled — no separate Ruby installation needed.
+
       To start Legion as a background service:
         brew services start legion
 
@@ -73,7 +79,7 @@ class Legion < Formula
   end
 
   test do
-    assert_match version.to_s, shell_output("#{bin}/legion version")
+    assert_match "Legion", shell_output("#{bin}/legion version")
   end
 
   private

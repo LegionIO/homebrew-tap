@@ -15,11 +15,17 @@ For local development with all services:
 brew install legion-dev
 ```
 
+## How It Works
+
+`brew install legion` downloads a prebuilt Ruby tarball (~25-30 MB) from GitHub Releases. The tarball contains Ruby 3.4.8 (compiled with YJIT), all Legion gems, and database adapters (`pg`, `mysql2`, `sqlite3`) with their native libraries pre-compiled and vendored. No compiler, Xcode, or Ruby installation is required on the user's machine.
+
+Legion gem updates happen automatically via `brew upgrade legion`, which triggers `post_install` to run `gem update legionio legion-data legion-llm` using the bundled Ruby.
+
 ## Available Formulae
 
 | Formula | Description | Dependencies |
 |---------|-------------|--------------|
-| `legion` | LegionIO CLI + background service | `ruby`, `redis` (required); `ollama`, `postgresql@17`, `rabbitmq`, `vault` (optional) |
+| `legion` | LegionIO CLI + background service | `redis` (required); `ollama`, `postgresql@17`, `rabbitmq`, `vault` (optional). Ruby 3.4.8 with YJIT is bundled — no separate Ruby install needed. `pg`, `mysql2`, and `sqlite3` are pre-installed with vendored native libraries. |
 | `legion-dev` | Full development stack (meta-package) | Everything in `legion` plus `ollama`, `postgresql@17`, `rabbitmq`, `rbenv`, `vault` |
 
 ## Services
@@ -100,10 +106,12 @@ brew services restart legion     # pick up the new version
 ## Troubleshooting
 
 ```bash
-legion doctor                    # diagnose Ruby, config, services, permissions
+legion doctor                    # diagnose config, services, permissions
 brew services info legion        # check service status and log path
 brew doctor                      # general Homebrew health check
 brew reinstall legion            # reinstall from scratch
+$(brew --prefix)/opt/legion/libexec/bin/ruby -v
+                                 # check bundled Ruby version
 ```
 
 Report issues at https://github.com/LegionIO/homebrew-tap/issues

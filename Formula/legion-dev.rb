@@ -1,15 +1,16 @@
 class LegionDev < Formula
   desc "Full LegionIO development environment with all services"
   homepage "https://github.com/LegionIO/LegionIO"
-  url "https://rubygems.org/downloads/legionio-1.4.8.gem"
-  sha256 "e58db552597d3ecbaa8598ac512b0af491c679213f1c9197c22286c1f3064892"
+  url "https://github.com/LegionIO/homebrew-tap/releases/download/ruby-3.4.8/legion-ruby-3.4.8-darwin-arm64.tar.gz"
+  sha256 "PLACEHOLDER_UNTIL_FIRST_BUILD"
+  version "3.4.8-1"
   license "Apache-2.0"
 
   depends_on "legionio/tap/legion"
   depends_on "ollama"
   depends_on "postgresql@17"
   depends_on "rabbitmq"
-  depends_on "rbenv"
+  depends_on "rbenv" => :recommended
   depends_on "redis"
   depends_on "vault"
 
@@ -30,9 +31,10 @@ class LegionDev < Formula
         brew services start vault
         ollama serve
 
-      Set up Ruby via rbenv:
-        rbenv install 3.4.2
-        rbenv global 3.4.2
+      Ruby 3.4.8 with YJIT is bundled with the legion formula.
+      For extension development with your own Ruby, install via rbenv:
+        rbenv install 3.4.8
+        rbenv global 3.4.8
     EOS
   end
 
