@@ -35,16 +35,6 @@ class Legion < Formula
     write_example_configs(share/"legionio/examples")
   end
 
-  def post_install
-    config_dir = Pathname.new(Dir.home)/".legionio/settings"
-    config_dir.mkpath
-
-    Dir.glob(share/"legionio/examples/*.json.example").each do |example|
-      target = config_dir/File.basename(example)
-      cp example, target unless target.exist?
-    end
-  end
-
   service do
     run [opt_bin/"legion", "start", "--log-level", "info"]
     keep_alive true
@@ -55,7 +45,10 @@ class Legion < Formula
 
   def caveats
     <<~EOS
-      Config:  ~/.legionio/settings/ (example files installed on first install)
+      First run:
+        legion config scaffold           # generate starter config files
+
+      Config:  ~/.legionio/settings/
       Logs:    #{var}/log/legion/legion.log
       Data:    #{var}/lib/legion/
 
