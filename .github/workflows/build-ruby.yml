@@ -43,15 +43,15 @@ jobs:
         run: |
           brew install openssl@3 libyaml rust postgresql@17 mysql-client sqlite
 
-      # - name: Cache Ruby compilation
-      #   uses: actions/cache@v4
-      #   id: ruby-cache
-      #   with:
-      #     path: legion-ruby
-      #     key: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v2
+      - name: Cache Ruby compilation
+        uses: actions/cache@v4
+        id: ruby-cache
+        with:
+          path: legion-ruby
+          key: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v3
 
       - name: Download Ruby source
-        # if: steps.ruby-cache.outputs.cache-hit != 'true'
+        if: steps.ruby-cache.outputs.cache-hit != 'true'
         run: |
           MINOR="${RUBY_VERSION%.*}"
           curl -fSL "https://cache.ruby-lang.org/pub/ruby/${MINOR}/ruby-${RUBY_VERSION}.tar.gz" \
@@ -59,7 +59,7 @@ jobs:
           tar xzf "ruby-${RUBY_VERSION}.tar.gz"
 
       - name: Configure and compile Ruby
-        # if: steps.ruby-cache.outputs.cache-hit != 'true'
+        if: steps.ruby-cache.outputs.cache-hit != 'true'
         run: |
           cd "ruby-${RUBY_VERSION}"
           ./configure \
