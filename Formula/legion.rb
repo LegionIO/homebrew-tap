@@ -91,7 +91,7 @@ class Legion < Formula
   end
 
   test do
-    assert_match "Legion", shell_output("#{bin}/legion version")
+    assert_match "legionio", shell_output("#{bin}/legion version")
   end
 
   private
