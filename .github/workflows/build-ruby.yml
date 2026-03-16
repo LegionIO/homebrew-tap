@@ -30,11 +30,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache Homebrew packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/Homebrew/downloads
+            ~/Library/Caches/Homebrew/api
+          key: brew-${{ matrix.suffix }}-${{ hashFiles('.github/workflows/build-ruby.yml') }}
+          restore-keys: brew-${{ matrix.suffix }}-
+
       - name: Install build dependencies
         run: |
           brew install openssl@3 libyaml rust postgresql@17 mysql-client
 
+      - name: Cache Ruby compilation
+        uses: actions/cache@v4
+        id: ruby-cache
+        with:
+          path: legion-ruby
+          key: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v1
+
       - name: Download Ruby source
+        if: steps.ruby-cache.outputs.cache-hit != 'true'
         run: |
           MINOR="${RUBY_VERSION%.*}"
           curl -fSL "https://cache.ruby-lang.org/pub/ruby/${MINOR}/ruby-${RUBY_VERSION}.tar.gz" \
@@ -42,6 +59,7 @@ jobs:
           tar xzf "ruby-${RUBY_VERSION}.tar.gz"
 
       - name: Configure and compile Ruby
+        if: steps.ruby-cache.outputs.cache-hit != 'true'
         run: |
           cd "ruby-${RUBY_VERSION}"
           ./configure \
@@ -68,31 +86,89 @@ jobs:
         run: |
           mkdir -p "$GITHUB_WORKSPACE/legion-ruby/libexec"
           LIBEXEC="$GITHUB_WORKSPACE/legion-ruby/libexec"
+          BREW_PREFIX="$(brew --prefix)"
+
+          # Find the actual dylib file, following symlinks
+          find_dylib() {
+            local dir="$1"
+            local pattern="$2"
+            # Use find to locate, then resolve symlinks with readlink
+            local found
+            found="$(find "$dir" -maxdepth 1 -name "${pattern}" -type f -o -name "${pattern}" -type l | head -1)"
+            if [ -n "$found" ] && [ -L "$found" ]; then
+              # Resolve symlink to actual file
+              readlink -f "$found" 2>/dev/null || greadlink -f "$found" 2>/dev/null || echo "$found"
+            else
+              echo "$found"
+            fi
+          }
+
+          # Recursively copy a dylib and its Homebrew dependencies
+          copy_with_deps() {
+            local src="$1"
+            if [ ! -f "$src" ]; then
+              echo "WARNING: skipping missing dylib: $src"
+              return
+            fi
+            local name
+            name="$(basename "$src")"
+            if [ -f "$LIBEXEC/$name" ]; then
+              return
+            fi
+            echo "Vendoring: $name"
+            cp -L "$src" "$LIBEXEC/$name"
+            otool -L "$src" | awk '{print $1}' | grep "$BREW_PREFIX" | while read -r dep; do
+              dep_basename="$(basename "$dep")"
+              if [ "$dep_basename" != "$name" ] && [ -f "$dep" ]; then
+                copy_with_deps "$dep"
+              elif [ "$dep_basename" != "$name" ]; then
+                # Try resolving via the same directory as the source
+                local dep_dir
+                dep_dir="$(dirname "$src")"
+                if [ -f "$dep_dir/$dep_basename" ]; then
+                  copy_with_deps "$dep_dir/$dep_basename"
+                fi
+              fi
+            done
+          }
 
           PG_LIB="$(brew --prefix postgresql@17)/lib"
           MYSQL_LIB="$(brew --prefix mysql-client)/lib"
           SSL_LIB="$(brew --prefix openssl@3)/lib"
           YAML_LIB="$(brew --prefix libyaml)/lib"
 
-          copy_with_deps() {
-            local src="$1"
-            local name
-            name="$(basename "$src")"
-            if [ ! -f "$LIBEXEC/$name" ]; then
-              cp "$src" "$LIBEXEC/$name"
-              otool -L "$src" | awk '{print $1}' | grep "$(brew --prefix)" | while read -r dep; do
-                if [ -f "$dep" ] && [ "$(basename "$dep")" != "$name" ]; then
-                  copy_with_deps "$dep"
-                fi
-              done
-            fi
-          }
+          echo "=== Discovering dylibs ==="
+          echo "PG_LIB: $PG_LIB"
+          ls -la "$PG_LIB"/libpq* 2>/dev/null || echo "No libpq files found"
+          echo "MYSQL_LIB: $MYSQL_LIB"
+          ls -la "$MYSQL_LIB"/libmysqlclient* 2>/dev/null || echo "No libmysqlclient files found"
+          echo "SSL_LIB: $SSL_LIB"
+          ls -la "$SSL_LIB"/libssl* 2>/dev/null || echo "No libssl files found"
+          echo "YAML_LIB: $YAML_LIB"
+          ls -la "$YAML_LIB"/libyaml* 2>/dev/null || echo "No libyaml files found"
 
-          copy_with_deps "$PG_LIB/libpq.5.dylib"
-          copy_with_deps "$MYSQL_LIB/libmysqlclient.21.dylib"
-          copy_with_deps "$SSL_LIB/libssl.3.dylib"
-          copy_with_deps "$SSL_LIB/libcrypto.3.dylib"
-          copy_with_deps "$YAML_LIB/libyaml-0.2.dylib"
+          # Find and copy each library (handles versioned names like libpq.5.17.dylib)
+          PQ_DYLIB="$(find_dylib "$PG_LIB" "libpq.*.dylib")"
+          MYSQL_DYLIB="$(find_dylib "$MYSQL_LIB" "libmysqlclient.*.dylib")"
+          SSL_DYLIB="$(find_dylib "$SSL_LIB" "libssl.*.dylib")"
+          CRYPTO_DYLIB="$(find_dylib "$SSL_LIB" "libcrypto.*.dylib")"
+          YAML_DYLIB="$(find_dylib "$YAML_LIB" "libyaml*.dylib")"
+
+          echo "=== Resolved dylib paths ==="
+          echo "libpq:          $PQ_DYLIB"
+          echo "libmysqlclient: $MYSQL_DYLIB"
+          echo "libssl:         $SSL_DYLIB"
+          echo "libcrypto:      $CRYPTO_DYLIB"
+          echo "libyaml:        $YAML_DYLIB"
+
+          copy_with_deps "$PQ_DYLIB"
+          copy_with_deps "$MYSQL_DYLIB"
+          copy_with_deps "$SSL_DYLIB"
+          copy_with_deps "$CRYPTO_DYLIB"
+          copy_with_deps "$YAML_DYLIB"
+
+          echo "=== Vendored files ==="
+          ls -la "$LIBEXEC"
 
       - name: Rewrite dylib load paths
         run: |
