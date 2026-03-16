@@ -32,8 +32,13 @@ class Legion < Formula
     end
 
     gem_dir = Dir[libexec/"lib/ruby/gems/*"].first || libexec/"lib/ruby/gems/3.4.0"
+    ruby_ver = Dir[libexec/"lib/ruby/[0-9]*"].reject { |p| p.include?("gems") }.first
+    ruby_arch = Dir["#{ruby_ver}/arm64-*"].first if ruby_ver
+    ruby_lib = [ruby_ver, ruby_arch].compact.join(":")
+
     env = {
       PATH: "#{libexec}/bin:$PATH",
+      RUBYLIB: ruby_lib,
       GEM_HOME: gem_dir,
       GEM_PATH: gem_dir,
       DYLD_FALLBACK_LIBRARY_PATH: libexec/"libexec"
