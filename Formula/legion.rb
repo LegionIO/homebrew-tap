@@ -1,8 +1,8 @@
 class Legion < Formula
   desc "Extensible async job engine and agentic AI framework for Ruby"
   homepage "https://github.com/LegionIO/LegionIO"
-  url "https://rubygems.org/downloads/legionio-1.2.1.gem"
-  sha256 "959c9c7052eccd9dfe25600f114a318846dc5d473040df8649595cc6bd69dd1d"
+  url "https://rubygems.org/downloads/legionio-1.4.8.gem"
+  sha256 "e58db552597d3ecbaa8598ac512b0af491c679213f1c9197c22286c1f3064892"
   license "Apache-2.0"
 
   depends_on "ruby"

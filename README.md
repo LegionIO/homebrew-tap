@@ -13,7 +13,7 @@ brew install legion
 
 | Formula | Version | Description |
 |---------|---------|-------------|
-| `legion` | 1.2.1 | Extensible async job engine and agentic AI framework for Ruby |
+| `legion` | 1.4.8 | Extensible async job engine and agentic AI framework for Ruby |
 
 ## Usage
 
