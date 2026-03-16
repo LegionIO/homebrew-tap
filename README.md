@@ -9,11 +9,18 @@ brew tap legionio/tap
 brew install legion
 ```
 
+For local development with all services:
+
+```bash
+brew install legion-dev
+```
+
 ## Available Formulae
 
 | Formula | Version | Description |
 |---------|---------|-------------|
-| `legion` | 1.4.8 | Extensible async job engine and agentic AI framework for Ruby |
+| `legion` | 1.4.8 | LegionIO CLI with Ruby and Redis |
+| `legion-dev` | 1.4.8 | Full development stack (RabbitMQ, PostgreSQL, Vault, Ollama, rbenv) |
 
 ## Usage
 
@@ -39,8 +46,8 @@ legion mcp
 ## Requirements
 
 - macOS with Homebrew
-- Ruby (installed automatically as a dependency)
-- RabbitMQ (required for the job engine — `brew install rabbitmq`)
+- Ruby and Redis (installed automatically with `legion`)
+- RabbitMQ (optional — `brew install legion-dev` for full stack)
 
 ## Updating
 
