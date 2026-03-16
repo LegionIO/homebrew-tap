@@ -90,7 +90,9 @@ class Legion < Formula
         transport: {
           connection: {
             host: "127.0.0.1", port: 5672,
-            user: "guest", password: "guest", vhost: "/"
+            user: ["vault://secret/data/rabbitmq#username", "env://RABBITMQ_USER", "guest"],
+            password: ["vault://secret/data/rabbitmq#password", "env://RABBITMQ_PASSWORD", "guest"],
+            vhost: "/"
           }
         }
       },
@@ -111,7 +113,7 @@ class Legion < Formula
         crypt: {
           vault: {
             enabled: false, address: "localhost",
-            port: 8200, token: nil
+            port: 8200, token: "env://VAULT_TOKEN"
           },
           jwt: {
             enabled: true, default_algorithm: "HS256",
@@ -130,10 +132,11 @@ class Legion < Formula
           default_provider: nil,
           default_model: nil,
           providers: {
-            anthropic: { enabled: false, api_key: nil },
-            openai: { enabled: false, api_key: nil },
-            gemini: { enabled: false, api_key: nil },
-            bedrock: { enabled: false, region: "us-east-2" },
+            anthropic: { enabled: false, api_key: "env://ANTHROPIC_API_KEY" },
+            openai: { enabled: false, api_key: "env://OPENAI_API_KEY" },
+            gemini: { enabled: false, api_key: "env://GEMINI_API_KEY" },
+            bedrock: { enabled: false, region: "us-east-2",
+                       bearer_token: ["vault://secret/data/llm/bedrock#bearer_token", "env://AWS_BEARER_TOKEN"] },
             ollama: { enabled: false, base_url: "http://localhost:11434" }
           }
         }
