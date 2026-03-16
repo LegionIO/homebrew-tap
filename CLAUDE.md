@@ -13,34 +13,47 @@ Homebrew tap providing formula installation of the `legion` CLI tool on macOS. U
 ```
 homebrew-tap/
 ├── Formula/
-│   └── legion.rb              # Homebrew formula for the legionio gem
+│   ├── legion.rb              # Main formula: legionio gem + Ruby + Redis
+│   └── legion-dev.rb          # Meta-formula: full development stack
 ├── .github/
 │   └── workflows/
 │       └── test.yml           # Brew test-bot CI (install + test + audit on macOS)
 └── README.md
 ```
 
-## The Formula (`Formula/legion.rb`)
+## Formulas
 
-The formula installs the `legionio` gem as a standalone Homebrew package:
+### `Formula/legion.rb` — Main Formula
+
+Installs the `legionio` gem as a standalone Homebrew package:
 
 - **Source**: RubyGems (`https://rubygems.org/downloads/legionio-{VERSION}.gem`)
-- **Dependency**: `ruby` (Homebrew's Ruby, not system Ruby)
+- **Dependencies**: `ruby` (Homebrew's Ruby, not system Ruby), `redis` (required for tracing and dream cycle)
+- **Optional dependencies**: `ollama`, `postgresql@17`, `rabbitmq`, `vault`
 - **Install method**: `gem install` into `libexec` with isolated `GEM_HOME`/`GEM_PATH`, then wraps all binaries with env scripts
 - **Test**: `legion version` must output the expected version string
 
-### Updating the Formula
+### `Formula/legion-dev.rb` — Development Meta-Formula
 
-When a new `legionio` gem version is released to RubyGems:
+A meta-formula that depends on `legionio/tap/legion` and installs the full development stack:
+
+- **Additional dependencies**: `ollama`, `postgresql@17`, `rabbitmq`, `rbenv`, `redis`, `vault`
+- **No binary**: delegates the `legion` CLI to the `legion` formula
+- **Install**: writes a README to prefix only (no gem install)
+- **Test**: runs `legion version`
+
+### Updating the Formulas
+
+When a new `legionio` gem version is released to RubyGems, update **both** `legion.rb` and `legion-dev.rb`:
 
 1. Get the new gem's SHA256: `curl -sL https://rubygems.org/downloads/legionio-{VERSION}.gem | sha256sum`
-2. Update `url` with the new version number
-3. Update `sha256` with the new checksum
+2. Update `url` with the new version number in both files
+3. Update `sha256` with the new checksum in both files
 4. Open a PR — the `test.yml` CI will install and test the formula on macOS
 
 Example update:
 ```ruby
-url "https://rubygems.org/downloads/legionio-1.2.2.gem"
+url "https://rubygems.org/downloads/legionio-1.4.9.gem"
 sha256 "abc123..."
 ```
 
@@ -48,7 +61,7 @@ The formula version is derived from the URL — no separate `version` field need
 
 ### Current Version
 
-`legionio` 1.2.1 — matches `Legion::VERSION` in `/Users/miverso2/rubymine/legion/LegionIO/lib/legion/version.rb`
+`legionio` 1.4.8 — matches `Legion::VERSION` in `/Users/miverso2/rubymine/legion/LegionIO/lib/legion/version.rb`
 
 ## CI (`test.yml`)
 
@@ -58,6 +71,8 @@ Runs `brew-test-bot` on `macos-latest` on every push and PR:
 3. `brew install legionio/tap/legion`
 4. `brew test legionio/tap/legion` (runs `legion version`)
 5. `brew audit --strict legionio/tap/legion || true` (audit failures are non-blocking)
+
+Note: CI only tests `legion`, not `legion-dev`. The `legion-dev` meta-formula is not included in the automated test run because it would pull in Ollama, RabbitMQ, Vault, and PostgreSQL, which significantly increases CI time.
 
 ## Homebrew Tap Conventions
 
