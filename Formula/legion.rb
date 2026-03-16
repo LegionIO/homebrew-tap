@@ -6,6 +6,11 @@ class Legion < Formula
   license "Apache-2.0"
 
   depends_on "ruby"
+  depends_on "redis"
+  depends_on "ollama" => :optional
+  depends_on "postgresql@17" => :optional
+  depends_on "rabbitmq" => :optional
+  depends_on "vault" => :optional
 
   def install
     ENV["GEM_HOME"] = libexec
@@ -15,6 +20,19 @@ class Legion < Formula
 
     bin.install Dir[libexec/"bin/*"]
     bin.env_script_all_files(libexec/"bin", GEM_HOME: libexec, GEM_PATH: libexec)
+  end
+
+  def caveats
+    <<~EOS
+      Start Redis (required for tracing and dream cycle):
+        brew services start redis
+
+      Optional services:
+        brew services start rabbitmq         # job engine messaging
+        brew services start postgresql@17    # legion-data persistence
+        brew services start vault            # legion-crypt secrets
+        ollama serve                         # local LLM for legion chat
+    EOS
   end
 
   test do
