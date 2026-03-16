@@ -31,8 +31,8 @@ Installs the `legionio` gem as a standalone Homebrew package using a prebuilt Ru
 - **Source**: Prebuilt tarball from GitHub Releases (`https://github.com/LegionIO/homebrew-tap/releases/download/ruby-{VERSION}/legion-ruby-{VERSION}-darwin-arm64.tar.gz`)
 - **Dependencies**: `redis` (required for tracing and dream cycle); NO `ruby` dependency — Ruby is bundled in the tarball
 - **Optional dependencies**: `ollama`, `postgresql@17`, `rabbitmq`, `vault`
-- **Install method**: Unpacks tarball to `libexec`, then creates wrapper scripts for all binaries that set `GEM_HOME`, `GEM_PATH`, and `DYLD_FALLBACK_LIBRARY_PATH` to the bundled paths
-- **post_install**: Runs `gem update legionio legion-data legion-llm` using the bundled Ruby to update Legion gems after install
+- **Install method**: Unpacks tarball to `libexec`, rewrites Ruby shebangs from build-machine paths to installed paths, then creates wrapper scripts that set `PATH`, `RUBYLIB`, `GEM_HOME`, `GEM_PATH`, and `DYLD_FALLBACK_LIBRARY_PATH` to the bundled paths
+- **No post_install**: example configs are written to `share/legionio/examples/` during install; users run `legion config scaffold` to copy them to `~/.legionio/settings/`
 - **Pre-installed gems in tarball**: `legionio` + all dependencies, `legion-data` + `sqlite3`, `legion-llm` + `ruby_llm`, `pg` (vendored libpq), `mysql2` (vendored libmysqlclient), `bundler`
 - **Service**: `brew services start legion` runs `legion start --log-level info` via launchd (macOS) or systemd (Linux)
   - Logs: `$(brew --prefix)/var/log/legion/legion.log`
@@ -63,7 +63,7 @@ A `workflow_dispatch` workflow that compiles a prebuilt Ruby tarball and uploads
 **Matrix:** single entry (`darwin-arm64`), expandable for additional platforms
 
 **What it does:**
-1. Compiles Ruby with YJIT enabled
+1. Compiles Ruby with YJIT and load-relative enabled
 2. Installs all required gems: `legionio` + deps, `legion-data` + `sqlite3`, `legion-llm` + `ruby_llm`, `pg`, `mysql2`, `bundler`
 3. Vendors native shared libraries: `libpq`, `libmysqlclient`, `libssl`, `libcrypto`, `libyaml`
 4. Rewrites dylib paths (via `install_name_tool`) so the tarball is self-contained and relocatable
