@@ -41,14 +41,14 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          brew install openssl@3 libyaml rust postgresql@17 mysql-client
+          brew install openssl@3 libyaml rust postgresql@17 mysql-client sqlite
 
       - name: Cache Ruby compilation
         uses: actions/cache@v4
         id: ruby-cache
         with:
           path: legion-ruby
-          key: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v1
+          key: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v2
 
       - name: Download Ruby source
         if: steps.ruby-cache.outputs.cache-hit != 'true'
@@ -76,8 +76,13 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
 
           gem install bundler --no-document
-          gem install sqlite3 --no-document
+          gem install sqlite3 --no-document -- \
+            --with-sqlite3-dir="$(brew --prefix sqlite)"
           gem install legionio legion-data legion-llm --no-document
+
+          echo "=== Verify sqlite3 gem ==="
+          gem which sqlite3 || echo "sqlite3 gem NOT found"
+          ruby -e "require 'sqlite3'; puts 'sqlite3 loaded OK'" || echo "sqlite3 FAILED to load"
           gem install pg --no-document -- \
             --with-pg-config="$(brew --prefix postgresql@17)/bin/pg_config"
           gem install mysql2 --no-document -- \
