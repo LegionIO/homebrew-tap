@@ -43,15 +43,15 @@ jobs:
         run: |
           brew install openssl@3 libyaml rust postgresql@17 mysql-client sqlite
 
-      - name: Cache Ruby compilation
-        uses: actions/cache@v4
-        id: ruby-cache
-        with:
-          path: legion-ruby
-          key: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v2
+      # - name: Cache Ruby compilation
+      #   uses: actions/cache@v4
+      #   id: ruby-cache
+      #   with:
+      #     path: legion-ruby
+      #     key: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v2
 
       - name: Download Ruby source
-        if: steps.ruby-cache.outputs.cache-hit != 'true'
+        # if: steps.ruby-cache.outputs.cache-hit != 'true'
         run: |
           MINOR="${RUBY_VERSION%.*}"
           curl -fSL "https://cache.ruby-lang.org/pub/ruby/${MINOR}/ruby-${RUBY_VERSION}.tar.gz" \
@@ -59,7 +59,7 @@ jobs:
           tar xzf "ruby-${RUBY_VERSION}.tar.gz"
 
       - name: Configure and compile Ruby
-        if: steps.ruby-cache.outputs.cache-hit != 'true'
+        # if: steps.ruby-cache.outputs.cache-hit != 'true'
         run: |
           cd "ruby-${RUBY_VERSION}"
           ./configure \
@@ -239,7 +239,22 @@ jobs:
         run: |
           export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
 
+          echo "=== Ruby info ==="
+          which ruby
           ruby -v
+
+          echo "=== Gem environment ==="
+          gem env
+
+          echo "=== Gem list (sqlite3) ==="
+          gem list sqlite3
+
+          echo "=== Gem which sqlite3 ==="
+          gem which sqlite3 || echo "gem which sqlite3 FAILED"
+
+          echo "=== Find sqlite3 files ==="
+          find "$GITHUB_WORKSPACE/legion-ruby" -path "*sqlite3*" -name "*.rb" | head -20
+          find "$GITHUB_WORKSPACE/legion-ruby" -path "*sqlite3*" -name "*.bundle" | head -10
 
           YJIT_RESULT="$(ruby -e "RubyVM::YJIT.enable; puts RubyVM::YJIT.enabled?")"
           if [ "$YJIT_RESULT" != "true" ]; then
