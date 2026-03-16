@@ -23,6 +23,7 @@ class LegionDev < Formula
   def caveats
     <<~EOS
       Start all services for local development:
+        brew services start legion
         brew services start redis
         brew services start rabbitmq
         brew services start postgresql@17

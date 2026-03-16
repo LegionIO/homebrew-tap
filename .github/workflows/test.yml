@@ -15,11 +15,15 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          path: tap-src
 
       - name: Tap this repo
         run: |
-          mkdir -p "$(brew --repository)/Library/Taps/legionio/homebrew-tap"
-          cp -a . "$(brew --repository)/Library/Taps/legionio/homebrew-tap"
+          TAP_DIR="$(brew --repository)/Library/Taps/legionio/homebrew-tap"
+          rm -rf "$TAP_DIR"
+          mkdir -p "$TAP_DIR"
+          cp -a tap-src/. "$TAP_DIR/"
 
       - name: Install formula
         run: brew install legionio/tap/legion

@@ -31,6 +31,11 @@ Installs the `legionio` gem as a standalone Homebrew package:
 - **Dependencies**: `ruby` (Homebrew's Ruby, not system Ruby), `redis` (required for tracing and dream cycle)
 - **Optional dependencies**: `ollama`, `postgresql@17`, `rabbitmq`, `vault`
 - **Install method**: `gem install` into `libexec` with isolated `GEM_HOME`/`GEM_PATH`, then wraps all binaries with env scripts
+- **Service**: `brew services start legion` runs `legion start --log-level info` via launchd (macOS) or systemd (Linux)
+  - Logs: `$(brew --prefix)/var/log/legion/legion.log`
+  - Data: `$(brew --prefix)/var/lib/legion/`
+  - PID: managed by launchd/systemd (not Legion's own `--pidfile`)
+  - Uses `opt_bin` for upgrade-safe binary path
 - **Test**: `legion version` must output the expected version string
 
 ### `Formula/legion-dev.rb` — Development Meta-Formula

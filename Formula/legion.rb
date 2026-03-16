@@ -20,10 +20,25 @@ class Legion < Formula
 
     bin.install Dir[libexec/"bin/*"]
     bin.env_script_all_files(libexec/"bin", GEM_HOME: libexec, GEM_PATH: libexec)
+
+    (var/"log/legion").mkpath
+    (var/"lib/legion").mkpath
+    (var/"run").mkpath
+  end
+
+  service do
+    run [opt_bin/"legion", "start", "--log-level", "info"]
+    keep_alive true
+    working_dir var/"lib/legion"
+    log_path var/"log/legion/legion.log"
+    error_log_path var/"log/legion/legion.log"
   end
 
   def caveats
     <<~EOS
+      To start Legion as a background service:
+        brew services start legion
+
       Start Redis (required for tracing and dream cycle):
         brew services start redis
 
@@ -32,6 +47,9 @@ class Legion < Formula
         brew services start postgresql@17    # legion-data persistence
         brew services start vault            # legion-crypt secrets
         ollama serve                         # local LLM for legion chat
+
+      Logs:    #{var}/log/legion/legion.log
+      Data:    #{var}/lib/legion/
     EOS
   end
 
