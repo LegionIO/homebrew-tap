@@ -17,6 +17,20 @@ class Legion < Formula
     # so bin/, lib/, libexec/ etc. are in the current directory
     libexec.install Dir["bin", "lib", "libexec", "include", "share"]
 
+    # Rewrite shebangs from the build-machine path to the installed ruby
+    ruby_bin = libexec/"bin/ruby"
+    Dir[libexec/"bin/*"].each do |script|
+      next if File.symlink?(script)
+      next unless File.file?(script) && File.readable?(script)
+
+      content = File.read(script)
+      next unless content.start_with?("#!")
+      next unless content.lines.first.include?("ruby")
+
+      content.sub!(%r{#!.*/ruby.*$}, "#!#{ruby_bin}")
+      File.write(script, content)
+    end
+
     gem_dir = Dir[libexec/"lib/ruby/gems/*"].first || libexec/"lib/ruby/gems/3.4.0"
     env = {
       PATH: "#{libexec}/bin:$PATH",
