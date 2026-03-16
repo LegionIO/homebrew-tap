@@ -36,6 +36,10 @@ class Legion < Formula
   end
 
   def post_install
+    gem_dir = Dir[libexec/"lib/ruby/gems/*"].first || libexec/"lib/ruby/gems/3.4.0"
+    ENV["DYLD_FALLBACK_LIBRARY_PATH"] = (libexec/"libexec").to_s
+    ENV["GEM_HOME"] = gem_dir.to_s
+    ENV["GEM_PATH"] = gem_dir.to_s
     system libexec/"bin/gem", "update", "legionio", "legion-data", "legion-llm",
            "--no-document"
 
