@@ -36,4 +36,7 @@ jobs:
 
       - name: Cleanup tap
         if: always()
-        run: rm -rf "$(brew --repository)/Library/Taps/legionio/homebrew-tap"
+        run: |
+          TAP_DIR="$(brew --repository)/Library/Taps/legionio/homebrew-tap"
+          rm -rf "$TAP_DIR"
+          touch "$TAP_DIR"
