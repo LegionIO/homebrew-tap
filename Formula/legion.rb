@@ -13,12 +13,15 @@ class Legion < Formula
   depends_on "vault" => :optional
 
   def install
-    libexec.install Dir["legion-ruby/*"]
+    # Homebrew auto-strips the top-level directory from the tarball,
+    # so bin/, lib/, libexec/ etc. are in the current directory
+    libexec.install Dir["bin", "lib", "libexec", "include", "share"]
 
+    gem_dir = Dir[libexec/"lib/ruby/gems/*"].first || libexec/"lib/ruby/gems/3.4.0"
     env = {
       PATH: "#{libexec}/bin:$PATH",
-      GEM_HOME: Dir[libexec/"lib/ruby/gems/*"].first,
-      GEM_PATH: Dir[libexec/"lib/ruby/gems/*"].first,
+      GEM_HOME: gem_dir,
+      GEM_PATH: gem_dir,
       DYLD_FALLBACK_LIBRARY_PATH: libexec/"libexec"
     }
 
