@@ -33,3 +33,7 @@ jobs:
 
       - name: Audit formula
         run: brew audit --strict legionio/tap/legion || true
+
+      - name: Cleanup tap
+        if: always()
+        run: rm -rf "$(brew --repository)/Library/Taps/legionio/homebrew-tap"
