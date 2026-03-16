@@ -48,7 +48,7 @@ jobs:
         id: ruby-cache
         with:
           path: legion-ruby
-          key: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v3
+          key: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v4
 
       - name: Download Ruby source
         if: steps.ruby-cache.outputs.cache-hit != 'true'
@@ -76,7 +76,7 @@ jobs:
         run: |
           export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
 
-          gem install bundler --no-document
+          gem install bundler --no-document --force
           gem install sqlite3 --no-document -- \
             --with-sqlite3-dir="$(brew --prefix sqlite)"
           gem install legionio legion-data legion-llm --no-document
