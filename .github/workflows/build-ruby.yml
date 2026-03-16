@@ -64,6 +64,7 @@ jobs:
           cd "ruby-${RUBY_VERSION}"
           ./configure \
             --enable-yjit \
+            --enable-load-relative \
             --disable-install-doc \
             --prefix="$GITHUB_WORKSPACE/legion-ruby" \
             --with-openssl-dir="$(brew --prefix openssl@3)" \
