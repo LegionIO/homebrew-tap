@@ -2,7 +2,7 @@ class Legion < Formula
   desc "Extensible async job engine and agentic AI framework"
   homepage "https://github.com/LegionIO/LegionIO"
   url "https://github.com/LegionIO/homebrew-tap/releases/download/ruby-3.4.8/legion-ruby-3.4.8-darwin-arm64.tar.gz"
-  sha256 "d46a27944c6a0e7b1ebd441c74d6a521a68bcc04a99abbf1fdd5b529b2caad81"
+  sha256 "a5b95f5dcfe36dc9c5b0250f3fab82df0624e7dfd37af2bc9f73f39e34a88ef0"
   version "3.4.8-1"
   license "Apache-2.0"
 
