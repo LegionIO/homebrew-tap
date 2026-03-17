@@ -62,6 +62,13 @@ class Legion < Formula
     error_log_path var/"log/legion/legion.log"
   end
 
+  def post_install
+    home = Dir.home
+    (Pathname.new(home)/".legion").mkpath
+    (Pathname.new(home)/".legionio").mkpath
+    (Pathname.new(home)/".legionio/settings").mkpath
+  end
+
   def caveats
     <<~EOS
       First run:
