@@ -56,7 +56,7 @@ class Legion < Formula
   end
 
   service do
-    run [opt_bin/"legion", "start", "--log-level", "info"]
+    run [opt_bin/"legionio", "start", "--log-level", "info"]
     keep_alive true
     working_dir var/"lib/legion"
     log_path var/"log/legion/legion.log"
@@ -103,6 +103,7 @@ class Legion < Formula
 
   test do
     assert_match "legionio", shell_output("#{bin}/legion version")
+    assert_match "legionio", shell_output("#{bin}/legionio version")
   end
 
   private
