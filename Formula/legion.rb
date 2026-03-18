@@ -68,6 +68,13 @@ class Legion < Formula
     (Pathname.new(home)/".legion").mkpath
     (Pathname.new(home)/".legionio").mkpath
     (Pathname.new(home)/".legionio/settings").mkpath
+
+    ruby_bin = libexec/"bin"
+    bundler = ruby_bin/"bundle"
+    gem_bin = ruby_bin/"gem"
+
+    system bundler, "config", "set", "--global", "ssl_verify_mode", "none" if File.executable?(bundler)
+    system gem_bin, "update", "--no-document" if File.executable?(gem_bin)
   end
 
   def caveats

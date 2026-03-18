@@ -89,10 +89,11 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
 
           gem install bundler --no-document --force
+          bundle config set --global ssl_verify_mode none
           gem install sqlite3 --no-document -- \
             --with-sqlite3-dir="$(brew --prefix sqlite)"
-          # lex-llm-gateway: metering + fleet dispatch for all nodes (published to RubyGems via LegionIO CI)
-          gem install legionio legion-data legion-llm legion-tty lex-llm-gateway --no-document
+          gem install legionio legion-data legion-llm legion-tty legion-rbac legion-gaia legion-cache \
+            lex-synapse lex-node lex-llm-gateway lex-metering --no-document
 
           echo "=== Verify sqlite3 gem ==="
           gem which sqlite3 || echo "sqlite3 gem NOT found"
@@ -101,6 +102,9 @@ jobs:
             --with-pg-config="$(brew --prefix postgresql@17)/bin/pg_config"
           gem install mysql2 --no-document -- \
             --with-mysql-config="$(brew --prefix mysql-client)/bin/mysql_config"
+
+          echo "=== Updating all gems ==="
+          gem update --no-document
 
           echo "=== Installed gems ==="
           gem list
@@ -239,6 +243,33 @@ jobs:
             install_name_tool -add_rpath "@executable_path/../libexec" "$bundle" 2>/dev/null || true
             install_name_tool -add_rpath "$LIBEXEC" "$bundle" 2>/dev/null || true
           done
+
+      - name: Ad-hoc codesign all native binaries
+        run: |
+          echo "=== Signing .bundle files ==="
+          find "$GITHUB_WORKSPACE/legion-ruby" -name '*.bundle' | while read -r bundle; do
+            codesign --force --sign - "$bundle"
+            echo "  signed: $(basename "$bundle")"
+          done
+
+          echo "=== Signing .dylib files ==="
+          find "$GITHUB_WORKSPACE/legion-ruby" -name '*.dylib' | while read -r dylib; do
+            codesign --force --sign - "$dylib"
+            echo "  signed: $(basename "$dylib")"
+          done
+
+          echo "=== Signing ruby binary ==="
+          codesign --force --sign - "$GITHUB_WORKSPACE/legion-ruby/bin/ruby"
+
+          echo "=== Verifying signatures ==="
+          UNSIGNED="$(find "$GITHUB_WORKSPACE/legion-ruby" \( -name '*.bundle' -o -name '*.dylib' \) \
+            -exec sh -c 'codesign -v "$1" 2>&1 | grep -q "not signed" && echo "$1"' _ {} \;)"
+          if [ -n "$UNSIGNED" ]; then
+            echo "ERROR: unsigned binaries remain:"
+            echo "$UNSIGNED"
+            exit 1
+          fi
+          echo "All native binaries signed — OK"
 
       - name: Verify build
         run: |
