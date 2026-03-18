@@ -33,7 +33,7 @@ Installs the `legionio` gem as a standalone Homebrew package using a prebuilt Ru
 - **Optional dependencies**: `ollama`, `postgresql@17`, `rabbitmq`, `vault`
 - **Install method**: Unpacks tarball to `libexec`, rewrites Ruby shebangs from build-machine paths to installed paths, then creates wrapper scripts that set `PATH`, `RUBYLIB`, `GEM_HOME`, `GEM_PATH`, and `DYLD_FALLBACK_LIBRARY_PATH` to the bundled paths
 - **No post_install**: example configs are written to `share/legionio/examples/` during install; users run `legion config scaffold` to copy them to `~/.legionio/settings/`
-- **Pre-installed gems in tarball**: `legionio` + all dependencies, `legion-data` + `sqlite3`, `legion-llm` + `ruby_llm`, `legion-tty` + tty-ruby gems, `pg` (vendored libpq), `mysql2` (vendored libmysqlclient), `bundler`
+- **Pre-installed gems in tarball**: `legionio` + all dependencies, `legion-data` + `sqlite3`, `legion-llm` + `ruby_llm`, `legion-tty` + tty-ruby gems, `lex-llm-gateway` (metering + fleet dispatch), `pg` (vendored libpq), `mysql2` (vendored libmysqlclient), `bundler`
 - **Service**: `brew services start legion` runs `legion start --log-level info` via launchd (macOS) or systemd (Linux)
   - Logs: `$(brew --prefix)/var/log/legion/legion.log`
   - Data: `$(brew --prefix)/var/lib/legion/`
@@ -65,7 +65,7 @@ A `workflow_dispatch` workflow that compiles a prebuilt Ruby tarball and uploads
 
 **What it does:**
 1. Compiles Ruby with YJIT and load-relative enabled
-2. Installs all required gems: `legionio` + deps, `legion-data` + `sqlite3`, `legion-llm` + `ruby_llm`, `pg`, `mysql2`, `bundler`
+2. Installs all required gems: `legionio` + deps, `legion-data` + `sqlite3`, `legion-llm` + `ruby_llm`, `lex-llm-gateway`, `pg`, `mysql2`, `bundler`
 3. Vendors native shared libraries: `libpq`, `libmysqlclient`, `libssl`, `libcrypto`, `libyaml`
 4. Rewrites dylib paths (via `install_name_tool`) so the tarball is self-contained and relocatable
 5. Verifies the result by running `legion version` inside the build environment

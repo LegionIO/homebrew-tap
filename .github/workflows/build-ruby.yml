@@ -91,7 +91,8 @@ jobs:
           gem install bundler --no-document --force
           gem install sqlite3 --no-document -- \
             --with-sqlite3-dir="$(brew --prefix sqlite)"
-          gem install legionio legion-data legion-llm legion-tty --no-document
+          # lex-llm-gateway: metering + fleet dispatch for all nodes (published to RubyGems via LegionIO CI)
+          gem install legionio legion-data legion-llm legion-tty lex-llm-gateway --no-document
 
           echo "=== Verify sqlite3 gem ==="
           gem which sqlite3 || echo "sqlite3 gem NOT found"
@@ -280,6 +281,7 @@ jobs:
             echo "WARNING: legionio binary not found in tarball"
           fi
           ruby -e "require 'legion/tty/version'; puts Legion::TTY::VERSION"
+          ruby -e "require 'legion/extensions/llm/gateway/version'; puts Legion::Extensions::LLM::Gateway::VERSION"
 
           BREW_PREFIX="$(brew --prefix)"
           BAD_BUNDLES="$(find "$GITHUB_WORKSPACE/legion-ruby" -name '*.bundle' \
