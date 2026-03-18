@@ -69,10 +69,13 @@ class Legion < Formula
     (Pathname.new(home)/".legionio").mkpath
     (Pathname.new(home)/".legionio/settings").mkpath
 
-    # Write gemrc for Zscaler SSL interception environments
-    gemrc = Pathname.new(home)/".gemrc"
-    unless gemrc.exist? && gemrc.read.include?(":ssl_verify_mode: 0")
-      gemrc.open("a") { |f| f.puts ":ssl_verify_mode: 0" }
+    # Write gemrc for Zscaler SSL interception environments (best-effort)
+    begin
+      gemrc = Pathname.new(home)/".gemrc"
+      unless gemrc.exist? && gemrc.read.include?(":ssl_verify_mode: 0")
+        gemrc.open("a") { |f| f.puts ":ssl_verify_mode: 0" }
+      end
+    rescue StandardError # rubocop:disable Lint/SuppressedException
     end
   end
 
