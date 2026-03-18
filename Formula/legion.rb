@@ -74,15 +74,14 @@ class Legion < Formula
     gem_bin = ruby_bin/"gem"
 
     # Zscaler SSL interception breaks gem/bundler TLS — disable verification globally
-    system bundler, "config", "set", "--global", "ssl_verify_mode", "none" if File.executable?(bundler)
+    Kernel.system(bundler.to_s, "config", "set", "--global", "ssl_verify_mode", "none") if File.executable?(bundler)
     gemrc = Pathname.new(home)/".gemrc"
     unless gemrc.exist? && gemrc.read.include?(":ssl_verify_mode: 0")
       gemrc.open("a") { |f| f.puts ":ssl_verify_mode: 0" }
     end
 
     # Best-effort gem update — may fail in CI or air-gapped environments
-    system gem_bin, "update", "--no-document" if File.executable?(gem_bin)
-    true
+    Kernel.system(gem_bin.to_s, "update", "--no-document") if File.executable?(gem_bin)
   end
 
   def caveats
