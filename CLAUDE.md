@@ -33,7 +33,7 @@ Installs the `legionio` gem as a standalone Homebrew package using a prebuilt Ru
 - **Optional dependencies**: `ollama`, `postgresql@17`, `rabbitmq`, `vault`
 - **Install method**: Unpacks tarball to `libexec`, rewrites Ruby shebangs from build-machine paths to installed paths, then creates wrapper scripts that set `PATH`, `RUBYLIB`, `GEM_HOME`, `GEM_PATH`, and `DYLD_FALLBACK_LIBRARY_PATH` to the bundled paths
 - **No post_install**: example configs are written to `share/legionio/examples/` during install; users run `legion config scaffold` to copy them to `~/.legionio/settings/`
-- **Pre-installed gems in tarball**: `legionio` + all dependencies, `legion-data` + `sqlite3`, `legion-llm` + `ruby_llm`, `pg` (vendored libpq), `mysql2` (vendored libmysqlclient), `bundler`
+- **Pre-installed gems in tarball**: `legionio` + all dependencies, `legion-data` + `sqlite3`, `legion-llm` + `ruby_llm`, `legion-tty` + tty-ruby gems, `pg` (vendored libpq), `mysql2` (vendored libmysqlclient), `bundler`
 - **Service**: `brew services start legion` runs `legion start --log-level info` via launchd (macOS) or systemd (Linux)
   - Logs: `$(brew --prefix)/var/log/legion/legion.log`
   - Data: `$(brew --prefix)/var/lib/legion/`

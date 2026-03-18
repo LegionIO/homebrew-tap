@@ -72,6 +72,7 @@ class Legion < Formula
   def caveats
     <<~EOS
       First run:
+        legion tty                       # rich terminal UI with onboarding wizard
         legion config scaffold           # generate starter config files
 
       Config:  ~/.legionio/settings/
