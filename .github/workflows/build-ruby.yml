@@ -7,6 +7,10 @@ on:
         description: "Ruby version to build"
         required: true
         default: "3.4.8"
+      package_revision:
+        description: "Package revision (increment when gems change, same Ruby)"
+        required: true
+        default: "2"
 
 permissions:
   contents: write
@@ -24,11 +28,19 @@ jobs:
 
     env:
       RUBY_VERSION: ${{ inputs.ruby_version }}
+      PKG_REVISION: ${{ inputs.package_revision }}
       SUFFIX: ${{ matrix.suffix }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Compute version tag
+        id: version
+        run: |
+          echo "tag=ruby-${RUBY_VERSION}-${PKG_REVISION}" >> "$GITHUB_OUTPUT"
+          echo "full_version=${RUBY_VERSION}-${PKG_REVISION}" >> "$GITHUB_OUTPUT"
+          echo "tarball=legion-ruby-${RUBY_VERSION}-${PKG_REVISION}-${SUFFIX}.tar.gz" >> "$GITHUB_OUTPUT"
 
       - name: Cache Homebrew packages
         uses: actions/cache@v4
@@ -102,11 +114,9 @@ jobs:
           find_dylib() {
             local dir="$1"
             local pattern="$2"
-            # Use find to locate, then resolve symlinks with readlink
             local found
             found="$(find "$dir" -maxdepth 1 -name "${pattern}" -type f -o -name "${pattern}" -type l | head -1)"
             if [ -n "$found" ] && [ -L "$found" ]; then
-              # Resolve symlink to actual file
               readlink -f "$found" 2>/dev/null || greadlink -f "$found" 2>/dev/null || echo "$found"
             else
               echo "$found"
@@ -132,7 +142,6 @@ jobs:
               if [ "$dep_basename" != "$name" ] && [ -f "$dep" ]; then
                 copy_with_deps "$dep"
               elif [ "$dep_basename" != "$name" ]; then
-                # Try resolving via the same directory as the source
                 local dep_dir
                 dep_dir="$(dirname "$src")"
                 if [ -f "$dep_dir/$dep_basename" ]; then
@@ -157,7 +166,6 @@ jobs:
           echo "YAML_LIB: $YAML_LIB"
           ls -la "$YAML_LIB"/libyaml* 2>/dev/null || echo "No libyaml files found"
 
-          # Find and copy each library (handles versioned names like libpq.5.17.dylib)
           PQ_DYLIB="$(find_dylib "$PG_LIB" "libpq.*.dylib")"
           MYSQL_DYLIB="$(find_dylib "$MYSQL_LIB" "libmysqlclient.*.dylib")"
           SSL_DYLIB="$(find_dylib "$SSL_LIB" "libssl.*.dylib")"
@@ -185,13 +193,11 @@ jobs:
           LIBEXEC="$GITHUB_WORKSPACE/legion-ruby/libexec"
           BREW_PREFIX="$(brew --prefix)"
 
-          # Fix IDs of vendored dylibs to @rpath/basename
           for dylib in "$LIBEXEC"/*.dylib; do
             name="$(basename "$dylib")"
             install_name_tool -id "@rpath/$name" "$dylib"
           done
 
-          # Fix cross-references between vendored dylibs
           for dylib in "$LIBEXEC"/*.dylib; do
             for dep in "$LIBEXEC"/*.dylib; do
               dep_name="$(basename "$dep")"
@@ -202,7 +208,6 @@ jobs:
             done
           done
 
-          # Fix Ruby binary and libruby
           RUBY_BIN="$GITHUB_WORKSPACE/legion-ruby/bin/ruby"
           LIBRUBY_PATH="$(find "$GITHUB_WORKSPACE/legion-ruby/lib" -name 'libruby*.dylib' | head -1)"
 
@@ -218,13 +223,11 @@ jobs:
             install_name_tool -add_rpath "$LIBEXEC" "$target" 2>/dev/null || true
           done
 
-          # Fix libruby ID
           if [ -n "$LIBRUBY_PATH" ]; then
             libruby_name="$(basename "$LIBRUBY_PATH")"
             install_name_tool -id "@rpath/$libruby_name" "$LIBRUBY_PATH" 2>/dev/null || true
           fi
 
-          # Fix all .bundle files
           find "$GITHUB_WORKSPACE/legion-ruby" -name '*.bundle' | while read -r bundle; do
             otool -L "$bundle" | awk '{print $1}' | grep "$BREW_PREFIX" | while read -r ref; do
               ref_name="$(basename "$ref")"
@@ -280,27 +283,78 @@ jobs:
           fi
           echo "No .bundle files reference Homebrew prefix — OK"
 
+          echo "=== Package version ==="
+          echo "Ruby: ${RUBY_VERSION}, Package revision: ${PKG_REVISION}"
+          echo "Full version: ${RUBY_VERSION}-${PKG_REVISION}"
+
       - name: Package artifact
         run: |
-          tar czf "legion-ruby-${RUBY_VERSION}-${SUFFIX}.tar.gz" legion-ruby/
+          TARBALL="${{ steps.version.outputs.tarball }}"
+          tar czf "$TARBALL" legion-ruby/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: legion-ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}
-          path: legion-ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}.tar.gz
+          name: ${{ steps.version.outputs.tarball }}
+          path: ${{ steps.version.outputs.tarball }}
           retention-days: 30
 
       - name: Create GitHub Release
         run: |
-          TAG="ruby-${RUBY_VERSION}"
-
-          # Delete existing release if present (rebuilding)
-          gh release delete "$TAG" --yes 2>/dev/null || true
+          TAG="${{ steps.version.outputs.tag }}"
+          TARBALL="${{ steps.version.outputs.tarball }}"
+          FULL_VERSION="${{ steps.version.outputs.full_version }}"
 
           gh release create "$TAG" \
-            --title "Ruby ${RUBY_VERSION} (${SUFFIX})" \
-            --notes "Pre-compiled Ruby ${RUBY_VERSION} for Legion on ${SUFFIX}. Includes YJIT, pg, mysql2, and all Legion gems." \
-            "legion-ruby-${RUBY_VERSION}-${SUFFIX}.tar.gz"
+            --title "Legion ${FULL_VERSION} (${SUFFIX})" \
+            --notes "Pre-compiled Ruby ${RUBY_VERSION} (package revision ${PKG_REVISION}) for Legion on ${SUFFIX}. Includes YJIT, pg, mysql2, legion-tty, and all Legion gems." \
+            "$TARBALL"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-formula:
+    needs: build
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download tarball for SHA256
+        run: |
+          TAG="ruby-${{ inputs.ruby_version }}-${{ inputs.package_revision }}"
+          TARBALL="legion-ruby-${{ inputs.ruby_version }}-${{ inputs.package_revision }}-darwin-arm64.tar.gz"
+          gh release download "$TAG" --pattern "$TARBALL"
+          SHA="$(shasum -a 256 "$TARBALL" | awk '{print $1}')"
+          echo "SHA256=$SHA" >> "$GITHUB_ENV"
+          echo "TARBALL=$TARBALL" >> "$GITHUB_ENV"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "FULL_VERSION=${{ inputs.ruby_version }}-${{ inputs.package_revision }}" >> "$GITHUB_ENV"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update formula
+        run: |
+          FORMULA="Formula/legion.rb"
+          URL="https://github.com/LegionIO/homebrew-tap/releases/download/${TAG}/${TARBALL}"
+
+          # Update url
+          sed -i '' "s|url \".*\"|url \"${URL}\"|" "$FORMULA"
+
+          # Update sha256
+          sed -i '' "s|sha256 \".*\"|sha256 \"${SHA256}\"|" "$FORMULA"
+
+          # Update version
+          sed -i '' "s|version \".*\"|version \"${FULL_VERSION}\"|" "$FORMULA"
+
+          echo "=== Updated formula ==="
+          head -8 "$FORMULA"
+
+      - name: Commit formula update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/legion.rb
+          git commit -m "bump formula to ${FULL_VERSION}" || echo "No changes to commit"
+          git push
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
