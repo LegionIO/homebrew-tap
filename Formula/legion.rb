@@ -45,6 +45,7 @@ class Legion < Formula
     }
 
     (bin/"legion").write_env_script libexec/"bin/legion", env
+    (bin/"legionio").write_env_script libexec/"bin/legionio", env
 
     (var/"log/legion").mkpath
     (var/"lib/legion").mkpath
@@ -71,9 +72,14 @@ class Legion < Formula
 
   def caveats
     <<~EOS
-      First run:
-        legion tty                       # rich terminal UI with onboarding wizard
-        legion config scaffold           # generate starter config files
+      Interactive shell (most users):
+        legion                           # rich terminal UI with onboarding
+
+      Operational CLI (daemon, extensions, tasks):
+        legionio start                   # start the daemon
+        legionio config scaffold         # generate config files
+        legionio lex list                # list extensions
+        legionio --help                  # all operational commands
 
       Config:  ~/.legionio/settings/
       Logs:    #{var}/log/legion/legion.log
@@ -92,9 +98,6 @@ class Legion < Formula
         brew services start postgresql@17    # legion-data persistence
         brew services start vault            # legion-crypt secrets
         ollama serve                         # local LLM for legion chat
-
-      To regenerate example configs (won't overwrite existing):
-        legion config scaffold
     EOS
   end
 
