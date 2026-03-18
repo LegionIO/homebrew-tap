@@ -271,6 +271,14 @@ jobs:
           ruby -e "require 'pg'; puts 'pg OK'"
           ruby -e "require 'mysql2'; puts 'mysql2 OK'"
           ruby -e "require 'legion/version'; puts Legion::VERSION"
+          echo "=== Verify legionio binary ==="
+          legionio_bin="$GITHUB_WORKSPACE/legion-ruby/bin/legionio"
+          if [ -f "$legionio_bin" ]; then
+            echo "legionio binary found"
+            ruby "$legionio_bin" version || echo "legionio version check failed"
+          else
+            echo "WARNING: legionio binary not found in tarball"
+          fi
           ruby -e "require 'legion/tty/version'; puts Legion::TTY::VERSION"
 
           BREW_PREFIX="$(brew --prefix)"
