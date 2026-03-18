@@ -69,9 +69,13 @@ class Legion < Formula
     (Pathname.new(home)/".legionio").mkpath
     (Pathname.new(home)/".legionio/settings").mkpath
 
+    configure_ssl(home)
+    update_gems
+  end
+
+  def configure_ssl(home)
     ruby_bin = libexec/"bin"
     bundler = ruby_bin/"bundle"
-    gem_bin = ruby_bin/"gem"
 
     # Zscaler SSL interception breaks gem/bundler TLS — disable verification globally
     Kernel.system(bundler.to_s, "config", "set", "--global", "ssl_verify_mode", "none") if File.executable?(bundler)
@@ -79,9 +83,13 @@ class Legion < Formula
     unless gemrc.exist? && gemrc.read.include?(":ssl_verify_mode: 0")
       gemrc.open("a") { |f| f.puts ":ssl_verify_mode: 0" }
     end
+  rescue StandardError # rubocop:disable Lint/SuppressedException
+  end
 
-    # Best-effort gem update — may fail in CI or air-gapped environments
+  def update_gems
+    gem_bin = libexec/"bin/gem"
     Kernel.system(gem_bin.to_s, "update", "--no-document") if File.executable?(gem_bin)
+  rescue StandardError # rubocop:disable Lint/SuppressedException
   end
 
   def caveats
