@@ -63,21 +63,8 @@ class Legion < Formula
     error_log_path var/"log/legion/legion.log"
   end
 
-  def post_install
-    home = Dir.home
-    (Pathname.new(home)/".legion").mkpath
-    (Pathname.new(home)/".legionio").mkpath
-    (Pathname.new(home)/".legionio/settings").mkpath
-
-    # Write gemrc for Zscaler SSL interception environments (best-effort)
-    begin
-      gemrc = Pathname.new(home)/".gemrc"
-      unless gemrc.exist? && gemrc.read.include?(":ssl_verify_mode: 0")
-        gemrc.open("a") { |f| f.puts ":ssl_verify_mode: 0" }
-      end
-    rescue StandardError # rubocop:disable Lint/SuppressedException
-    end
-  end
+  # No post_install — directory creation and SSL config handled at runtime
+  # by the onboarding wizard (legion-tty) on first launch
 
   def caveats
     <<~EOS
