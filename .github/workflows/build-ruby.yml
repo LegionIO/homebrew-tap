@@ -84,6 +84,16 @@ jobs:
           make -j$(sysctl -n hw.ncpu)
           make install
 
+      - name: Clean cached gems
+        if: steps.ruby-cache.outputs.cache-hit == 'true'
+        run: |
+          echo "=== Clearing stale gems from cache ==="
+          GEM_DIR="$(find "$GITHUB_WORKSPACE/legion-ruby/lib/ruby/gems" -maxdepth 1 -type d | tail -1)"
+          if [ -d "$GEM_DIR" ]; then
+            rm -rf "$GEM_DIR/gems" "$GEM_DIR/specifications" "$GEM_DIR/extensions" "$GEM_DIR/cache"
+            echo "Cleared: $GEM_DIR"
+          fi
+
       - name: Install gems
         run: |
           export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
