@@ -10,7 +10,7 @@ on:
       package_revision:
         description: "Package revision (increment when gems change, same Ruby)"
         required: true
-        default: "6"
+        default: "7"
 
 permissions:
   contents: write
@@ -93,7 +93,7 @@ jobs:
           gem install sqlite3 --no-document -- \
             --with-sqlite3-dir="$(brew --prefix sqlite)"
           gem install legionio legion-data legion-llm legion-tty legion-rbac legion-gaia legion-cache \
-            lex-synapse lex-node lex-llm-gateway lex-metering lex-http --no-document
+            lex-synapse lex-node lex-llm-gateway lex-metering lex-http lex-detect --no-document
 
           echo "=== Verify sqlite3 gem ==="
           gem which sqlite3 || echo "sqlite3 gem NOT found"
@@ -313,6 +313,7 @@ jobs:
           fi
           ruby -e "require 'legion/tty/version'; puts Legion::TTY::VERSION"
           ruby -e "require 'legion/extensions/llm/gateway/version'; puts Legion::Extensions::LLM::Gateway::VERSION"
+          ruby -e "require 'legion/extensions/detect/version'; puts Legion::Extensions::Detect::VERSION"
 
           BREW_PREFIX="$(brew --prefix)"
           BAD_BUNDLES="$(find "$GITHUB_WORKSPACE/legion-ruby" -name '*.bundle' \
