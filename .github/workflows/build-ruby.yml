@@ -10,7 +10,7 @@ on:
       package_revision:
         description: "Package revision (increment when gems change, same Ruby)"
         required: true
-        default: "7"
+        default: "8"
 
 permissions:
   contents: write
