@@ -10,7 +10,7 @@ on:
       package_revision:
         description: "Package revision (increment when gems change, same Ruby)"
         required: true
-        default: "2"
+        default: "6"
 
 permissions:
   contents: write
@@ -93,7 +93,7 @@ jobs:
           gem install sqlite3 --no-document -- \
             --with-sqlite3-dir="$(brew --prefix sqlite)"
           gem install legionio legion-data legion-llm legion-tty legion-rbac legion-gaia legion-cache \
-            lex-synapse lex-node lex-llm-gateway lex-metering --no-document
+            lex-synapse lex-node lex-llm-gateway lex-metering lex-http --no-document
 
           echo "=== Verify sqlite3 gem ==="
           gem which sqlite3 || echo "sqlite3 gem NOT found"

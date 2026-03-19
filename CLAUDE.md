@@ -113,7 +113,7 @@ version "3.4.8-2"
 ### Current Version
 
 - **Bundled Ruby**: 3.4.8 (compiled with YJIT, self-contained with vendored native libs)
-- **Current package version**: `3.4.8-1` (Ruby 3.4.8, package revision 1)
+- **Current package version**: `3.4.8-2` (Ruby 3.4.8, package revision 2)
 - **Legion gem version**: tracked via gems pre-installed in the tarball
 
 ## CI (`test.yml`)
