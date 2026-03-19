@@ -6,7 +6,9 @@ class Legion < Formula
   version "3.4.8-9"
   license "Apache-2.0"
 
+  depends_on "openssl@3"
   depends_on "redis"
+  depends_on "snappy"
   depends_on "ollama" => :optional
   depends_on "postgresql@17" => :optional
   depends_on "rabbitmq" => :optional
@@ -63,8 +65,9 @@ class Legion < Formula
     error_log_path var/"log/legion/legion.log"
   end
 
-  # No post_install — directory creation and SSL config handled at runtime
-  # by the onboarding wizard (legion-tty) on first launch
+  def post_install
+    install_tls_certificates
+  end
 
   def caveats
     <<~EOS
@@ -103,6 +106,30 @@ class Legion < Formula
   end
 
   private
+
+  def install_tls_certificates
+    openssl = Formula["openssl@3"].opt_bin/"openssl"
+    c_rehash = Formula["openssl@3"].opt_bin/"c_rehash"
+    cert_dir = HOMEBREW_PREFIX/"etc/openssl@3/certs"
+    cert_dir.mkpath
+
+    %w[rubygems.org github.com].each do |host|
+      ohai "Fetching TLS certificate chain for #{host}"
+      begin
+        output = `echo | #{openssl} s_client -showcerts -connect #{host}:443 2>/dev/null`
+        certs = output.scan(/-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----/m)
+        certs.each_with_index do |cert, i|
+          (cert_dir/"#{host}-#{i}.pem").atomic_write(cert + "\n")
+        end
+        ohai "  Saved #{certs.size} certificate(s) for #{host}"
+      rescue => e
+        opoo "Could not fetch certificates for #{host}: #{e.message}"
+      end
+    end
+
+    ohai "Rehashing certificate directory"
+    system c_rehash.to_s, cert_dir.to_s
+  end
 
   def write_example_configs(dir) # rubocop:disable Metrics/MethodLength
     configs = {
