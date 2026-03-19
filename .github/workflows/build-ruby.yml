@@ -106,6 +106,9 @@ jobs:
           echo "=== Updating all gems ==="
           gem update --no-document
 
+          echo "=== Cleaning up old gem versions ==="
+          gem cleanup
+
           echo "=== Installed gems ==="
           gem list
 
