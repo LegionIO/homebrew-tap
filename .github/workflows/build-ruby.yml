@@ -78,7 +78,7 @@ jobs:
           gem install oj --no-document
           gem install puma --no-document
           gem install nio4r --no-document
-          gem install racc --no-document
+          gem install racc --no-document --force
           gem install snappy --no-document -- \
             --with-snappy-dir="$(brew --prefix snappy)"
           gem install concurrent-ruby concurrent-ruby-ext --no-document
