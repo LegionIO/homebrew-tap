@@ -22,7 +22,7 @@ jobs:
     runs-on: macos-14
 
     env:
-      GEM_VERSION: ${{ inputs.tty_version || '0.4.28' }}
+      GEM_VERSION: ${{ inputs.tty_version || github.event.client_payload.legion_tty_version || '0.4.28' }}
       PKG_REVISION: ${{ inputs.package_revision || '1' }}
 
     steps:
@@ -116,7 +116,7 @@ jobs:
           echo "TAG=$TAG" >> "$GITHUB_ENV"
           echo "FULL_VERSION=${GEM_VERSION}-${PKG_REVISION}" >> "$GITHUB_ENV"
         env:
-          GEM_VERSION: ${{ inputs.tty_version || '0.4.28' }}
+          GEM_VERSION: ${{ inputs.tty_version || github.event.client_payload.legion_tty_version || '0.4.28' }}
           PKG_REVISION: ${{ inputs.package_revision || '1' }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
