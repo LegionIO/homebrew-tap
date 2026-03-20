@@ -27,7 +27,8 @@ class LegionioRuby < Formula
 
     # Isolate gem discovery to the Cellar — prevent ~/.gem and rbenv leaking in
     gem_dir = Dir[libexec/"lib/ruby/gems/*"].first || libexec/"lib/ruby/gems/3.4.0"
-    defaults_dir = libexec/"lib/ruby/site_ruby"/RbConfig::CONFIG["ruby_version"]/"rubygems/defaults"
+    ruby_ver = File.basename(gem_dir) # e.g. "3.4.0"
+    defaults_dir = libexec/"lib/ruby/site_ruby"/ruby_ver/"rubygems/defaults"
     defaults_dir.mkpath
     (defaults_dir/"operating_system.rb").write <<~RUBY
       module Gem
