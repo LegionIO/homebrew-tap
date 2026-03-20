@@ -38,7 +38,7 @@ jobs:
 
       - name: Download legionio-ruby tarball
         run: |
-          LATEST_TAG="$(gh release list --limit 20 | grep '^ruby-' | head -1 | awk '{print $1}')"
+          LATEST_TAG="$(gh release list --limit 50 --json tagName --jq '[.[] | select(.tagName | startswith("ruby-"))][0].tagName')"
           LATEST_TARBALL="$(gh release view "$LATEST_TAG" --json assets --jq '.assets[0].name')"
           echo "Downloading $LATEST_TAG / $LATEST_TARBALL"
           gh release download "$LATEST_TAG" --pattern "$LATEST_TARBALL" --clobber
