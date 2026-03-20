@@ -86,6 +86,10 @@ jobs:
             --with-pg-config="$(brew --prefix postgresql@17)/bin/pg_config"
           gem install mysql2 --no-document -- \
             --with-mysql-config="$(brew --prefix mysql-client)/bin/mysql_config"
+          gem install bootsnap --no-document
+          gem install msgpack --no-document
+          gem install ed25519 --no-document
+          gem install rbtree --no-document
 
           echo "=== Cleaning up old gem versions ==="
           gem cleanup
@@ -282,6 +286,10 @@ jobs:
           ruby -e "require 'pg'; puts 'pg OK'"
           ruby -e "require 'mysql2'; puts 'mysql2 OK'"
           ruby -e "require 'concurrent'; puts 'concurrent-ruby OK'"
+          ruby -e "require 'bootsnap'; puts 'bootsnap OK'"
+          ruby -e "require 'msgpack'; puts 'msgpack OK'"
+          ruby -e "require 'ed25519'; puts 'ed25519 OK'"
+          ruby -e "require 'rbtree'; puts 'rbtree OK'"
 
           BREW_PREFIX="$(brew --prefix)"
           BAD_BUNDLES="$(find "$GITHUB_WORKSPACE/legion-ruby" -name '*.bundle' \
