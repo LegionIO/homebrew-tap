@@ -140,9 +140,9 @@ version "3.4.8-13"
 ### Current Version
 
 - **Bundled Ruby**: 3.4.8 (compiled with YJIT, self-contained with vendored native libs)
-- **Current package version**: `3.4.8-13` (Ruby 3.4.8, package revision 13)
-- **legionio gem version**: 1.4.78-1 (separate gems tarball)
-- **legion-tty gem version**: 0.4.28-1 (separate gems tarball)
+- **Current package version**: `3.4.8-9` (Ruby 3.4.8, package revision 9)
+- **legionio gem version**: 1.4.79-2 (separate gems tarball)
+- **legion-tty gem version**: 0.4.28-2 (separate gems tarball)
 
 ## CI (`test.yml`)
 
