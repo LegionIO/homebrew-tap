@@ -137,12 +137,22 @@ sha256 "3839ccedf2c31f3434f2bb4984e92664c9e6c17ef0517efda2cca2c0e0f311e3"
 version "3.4.8-13"
 ```
 
+### Gem Isolation
+
+The formulas implement 3-layer isolation to prevent system/rbenv gems from leaking into the Homebrew installation:
+
+1. **`legionio-ruby`**: Installs `rubygems/defaults/operating_system.rb` that overrides `Gem.user_dir`, `Gem.default_dir`, and `Gem.default_path` to stay inside the Cellar. Prevents `~/.gem/ruby/3.4.0` from appearing in gem resolution.
+2. **`legionio` / `legion-tty`**: Write wrapper scripts directly (not via `write_env_script` which drops empty strings). Set `RUBYGEMS_GEMDEPS=""`, `BUNDLE_GEMFILE=""`, `RUBYOPT=""` to disable Gemfile scanning and rbenv injections.
+3. **Explicit `GEM_PATH`/`GEM_HOME`**: Wrapper scripts only list Cellar gem directories.
+
+**Important**: `RbConfig::CONFIG["ruby_version"]` during `brew install` returns Homebrew's own Ruby version (e.g., 4.0.0), NOT the version being installed. The formula derives the correct version from the gem directory path.
+
 ### Current Version
 
 - **Bundled Ruby**: 3.4.8 (compiled with YJIT, self-contained with vendored native libs)
-- **Current package version**: `3.4.8-9` (Ruby 3.4.8, package revision 9)
-- **legionio gem version**: 1.4.79-2 (separate gems tarball)
-- **legion-tty gem version**: 0.4.28-2 (separate gems tarball)
+- **Current package version**: `3.4.8-15` (Ruby 3.4.8, package revision 15)
+- **legionio gem version**: 1.4.91-1 (separate gems tarball)
+- **legion-tty gem version**: 0.4.29-4 (separate gems tarball)
 
 ## CI (`test.yml`)
 
