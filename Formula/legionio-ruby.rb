@@ -1,9 +1,9 @@
 class LegionioRuby < Formula
   desc "Ruby runtime with native extensions for LegionIO"
   homepage "https://github.com/LegionIO/LegionIO"
-  url "https://github.com/LegionIO/homebrew-tap/releases/download/ruby-3.4.8-15/legion-ruby-3.4.8-15-darwin-arm64.tar.gz"
-  sha256 "a0ba029d2ace94ed168e1bb791d378d00c7757f6890b23321ffe86c6f552511d"
-  version "3.4.8-15"
+  url "https://github.com/LegionIO/homebrew-tap/releases/download/ruby-3.4.8-16/legion-ruby-3.4.8-16-darwin-arm64.tar.gz"
+  sha256 "c3499d18e292f97f718e754ea8684260b2587fb008766045fb2a79c7d285b9aa"
+  version "3.4.8-16"
   license "Apache-2.0"
 
   depends_on "openssl@3"
