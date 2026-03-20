@@ -136,3 +136,42 @@ jobs:
           git push
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  trigger-tty:
+    needs: update-formula
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if TTY rebuild needed
+        id: check
+        run: |
+          LATEST_TTY_TAG="$(gh release list --repo LegionIO/homebrew-tap --limit 50 \
+            --json tagName --jq '[.[] | select(.tagName | startswith("legion-tty-"))][0].tagName')"
+          echo "Latest TTY release tag: $LATEST_TTY_TAG"
+
+          # Extract the gem version from the tag (e.g. legion-tty-0.4.28-2 -> 0.4.28)
+          CURRENT_TTY_VERSION="$(echo "$LATEST_TTY_TAG" | sed 's/^legion-tty-//; s/-[0-9]*$//')"
+          echo "Current TTY gem version in tap: $CURRENT_TTY_VERSION"
+
+          # Check the latest legion-tty version on RubyGems
+          LATEST_GEM_VERSION="$(curl -s https://rubygems.org/api/v1/gems/legion-tty.json | jq -r '.version')"
+          echo "Latest legion-tty on RubyGems: $LATEST_GEM_VERSION"
+
+          if [ "$CURRENT_TTY_VERSION" != "$LATEST_GEM_VERSION" ]; then
+            echo "TTY gem version changed ($CURRENT_TTY_VERSION -> $LATEST_GEM_VERSION), triggering rebuild"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "version=$LATEST_GEM_VERSION" >> "$GITHUB_OUTPUT"
+          else
+            echo "TTY gem version unchanged, skipping rebuild"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger TTY build
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          gh api repos/LegionIO/homebrew-tap/dispatches \
+            -f event_type=build-tty \
+            -f "client_payload[legion_tty_version]=${{ steps.check.outputs.version }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
