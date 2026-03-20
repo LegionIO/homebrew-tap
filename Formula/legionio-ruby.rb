@@ -44,6 +44,10 @@ class LegionioRuby < Formula
           [default_dir]
         end
       end
+
+      # Prevent Bundler from resolving local Gemfiles
+      ENV["BUNDLE_GEMFILE"] ||= ""
+      ENV["RUBYGEMS_GEMDEPS"] ||= ""
     RUBY
   end
 
