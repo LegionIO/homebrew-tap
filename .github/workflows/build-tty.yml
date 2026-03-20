@@ -1,0 +1,141 @@
+name: Build TTY Gems
+
+on:
+  workflow_dispatch:
+    inputs:
+      tty_version:
+        description: "legion-tty gem version"
+        required: true
+        default: "0.4.28"
+      package_revision:
+        description: "Package revision"
+        required: true
+        default: "1"
+  repository_dispatch:
+    types: [build-tty]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    env:
+      GEM_VERSION: ${{ inputs.tty_version || '0.4.28' }}
+      PKG_REVISION: ${{ inputs.package_revision || '1' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute version tag
+        id: version
+        run: |
+          echo "tag=legion-tty-${GEM_VERSION}-${PKG_REVISION}" >> "$GITHUB_OUTPUT"
+          echo "full_version=${GEM_VERSION}-${PKG_REVISION}" >> "$GITHUB_OUTPUT"
+          echo "tarball=legion-tty-gems-${GEM_VERSION}-${PKG_REVISION}.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Download legionio-ruby tarball
+        run: |
+          LATEST_TAG="$(gh release list --limit 20 | grep '^ruby-' | head -1 | awk '{print $1}')"
+          LATEST_TARBALL="$(gh release view "$LATEST_TAG" --json assets --jq '.assets[0].name')"
+          echo "Downloading ruby: $LATEST_TAG / $LATEST_TARBALL"
+          gh release download "$LATEST_TAG" --pattern "$LATEST_TARBALL"
+          mkdir -p legion-ruby
+          tar xzf "$LATEST_TARBALL" --strip-components=1 -C legion-ruby
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download legionio daemon tarball
+        run: |
+          LATEST_TAG="$(gh release list --limit 20 | grep '^legionio-' | head -1 | awk '{print $1}')"
+          LATEST_TARBALL="$(gh release view "$LATEST_TAG" --json assets --jq '.assets[0].name')"
+          echo "Downloading daemon: $LATEST_TAG / $LATEST_TARBALL"
+          gh release download "$LATEST_TAG" --pattern "$LATEST_TARBALL"
+          mkdir -p daemon-gems
+          tar xzf "$LATEST_TARBALL" --strip-components=1 -C daemon-gems
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install TTY gems
+        run: |
+          export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
+          RUBY_GEM_DIR="$(find "$GITHUB_WORKSPACE/legion-ruby/lib/ruby/gems" -maxdepth 1 -type d | tail -1)"
+
+          mkdir -p "$GITHUB_WORKSPACE/tty-gems"
+          export GEM_HOME="$GITHUB_WORKSPACE/tty-gems"
+          export GEM_PATH="$GITHUB_WORKSPACE/tty-gems:$GITHUB_WORKSPACE/daemon-gems:$RUBY_GEM_DIR"
+
+          gem install legion-tty --no-document
+
+          echo "=== Installed TTY gems ==="
+          ls "$GEM_HOME/gems/"
+
+      - name: Verify
+        run: |
+          export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
+          RUBY_GEM_DIR="$(find "$GITHUB_WORKSPACE/legion-ruby/lib/ruby/gems" -maxdepth 1 -type d | tail -1)"
+          export GEM_PATH="$GITHUB_WORKSPACE/tty-gems:$GITHUB_WORKSPACE/daemon-gems:$RUBY_GEM_DIR"
+
+          ruby -e "require 'legion/tty/version'; puts Legion::TTY::VERSION"
+
+      - name: Package
+        run: |
+          TARBALL="${{ steps.version.outputs.tarball }}"
+          mv tty-gems gems
+          tar czf "$TARBALL" gems/
+
+      - name: Create GitHub Release
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          TARBALL="${{ steps.version.outputs.tarball }}"
+          FULL_VERSION="${{ steps.version.outputs.full_version }}"
+          gh release create "$TAG" \
+            --title "Legion TTY Gems ${FULL_VERSION}" \
+            --notes "Pure-Ruby TTY and interactive shell gems for Legion TTY ${GEM_VERSION} (revision ${PKG_REVISION})." \
+            "$TARBALL"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-formula:
+    needs: build
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download tarball for SHA256
+        run: |
+          TAG="legion-tty-${GEM_VERSION}-${PKG_REVISION}"
+          TARBALL="legion-tty-gems-${GEM_VERSION}-${PKG_REVISION}.tar.gz"
+          gh release download "$TAG" --pattern "$TARBALL"
+          SHA="$(shasum -a 256 "$TARBALL" | awk '{print $1}')"
+          echo "SHA256=$SHA" >> "$GITHUB_ENV"
+          echo "TARBALL=$TARBALL" >> "$GITHUB_ENV"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "FULL_VERSION=${GEM_VERSION}-${PKG_REVISION}" >> "$GITHUB_ENV"
+        env:
+          GEM_VERSION: ${{ inputs.tty_version || '0.4.28' }}
+          PKG_REVISION: ${{ inputs.package_revision || '1' }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update formula
+        run: |
+          FORMULA="Formula/legion-tty.rb"
+          URL="https://github.com/LegionIO/homebrew-tap/releases/download/${TAG}/${TARBALL}"
+          sed -i '' "s|url \".*\"|url \"${URL}\"|" "$FORMULA"
+          sed -i '' "s|sha256 \".*\"|sha256 \"${SHA256}\"|" "$FORMULA"
+          sed -i '' "s|version \".*\"|version \"${FULL_VERSION}\"|" "$FORMULA"
+          echo "=== Updated formula ==="
+          head -8 "$FORMULA"
+
+      - name: Commit formula update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/legion-tty.rb
+          git commit -m "bump legion-tty to ${FULL_VERSION}" || echo "No changes to commit"
+          git push
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
