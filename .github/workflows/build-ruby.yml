@@ -94,29 +94,26 @@ jobs:
             echo "Cleared: $GEM_DIR"
           fi
 
-      - name: Install gems
+      - name: Install native extension gems
         run: |
           export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
 
           gem install bundler --no-document --force
           bundle config set --global ssl_verify_mode none
+
           gem install sqlite3 --no-document -- \
             --with-sqlite3-dir="$(brew --prefix sqlite)"
-          gem install legionio legion-data legion-llm legion-tty legion-rbac legion-gaia legion-cache \
-            lex-synapse lex-node lex-llm-gateway lex-metering lex-http lex-detect --no-document
+          gem install oj --no-document
+          gem install puma --no-document
+          gem install nio4r --no-document
+          gem install racc --no-document
           gem install snappy --no-document -- \
             --with-snappy-dir="$(brew --prefix snappy)"
-
-          echo "=== Verify sqlite3 gem ==="
-          gem which sqlite3 || echo "sqlite3 gem NOT found"
-          ruby -e "require 'sqlite3'; puts 'sqlite3 loaded OK'" || echo "sqlite3 FAILED to load"
+          gem install concurrent-ruby concurrent-ruby-ext --no-document
           gem install pg --no-document -- \
             --with-pg-config="$(brew --prefix postgresql@17)/bin/pg_config"
           gem install mysql2 --no-document -- \
             --with-mysql-config="$(brew --prefix mysql-client)/bin/mysql_config"
-
-          echo "=== Updating all gems ==="
-          gem update --no-document
 
           echo "=== Cleaning up old gem versions ==="
           gem cleanup
@@ -297,58 +294,32 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
 
           echo "=== Ruby info ==="
-          which ruby
           ruby -v
-
-          echo "=== Gem environment ==="
-          gem env
-
-          echo "=== Gem list (sqlite3) ==="
-          gem list sqlite3
-
-          echo "=== Gem which sqlite3 ==="
-          gem which sqlite3 || echo "gem which sqlite3 FAILED"
-
-          echo "=== Find sqlite3 files ==="
-          find "$GITHUB_WORKSPACE/legion-ruby" -path "*sqlite3*" -name "*.rb" | head -20
-          find "$GITHUB_WORKSPACE/legion-ruby" -path "*sqlite3*" -name "*.bundle" | head -10
 
           YJIT_RESULT="$(ruby -e "RubyVM::YJIT.enable; puts RubyVM::YJIT.enabled?")"
           if [ "$YJIT_RESULT" != "true" ]; then
-            echo "ERROR: YJIT is not enabled (got: $YJIT_RESULT)"
+            echo "ERROR: YJIT is not enabled"
             exit 1
           fi
-          echo "YJIT: $YJIT_RESULT"
+          echo "YJIT: OK"
 
-          ruby -e "require 'oj'; require 'puma'; require 'sqlite3'; require 'snappy'; puts 'core OK'"
+          ruby -e "require 'sqlite3'; puts 'sqlite3 OK'"
+          ruby -e "require 'oj'; puts 'oj OK'"
+          ruby -e "require 'puma'; puts 'puma OK'"
+          ruby -e "require 'snappy'; puts 'snappy OK'"
           ruby -e "require 'pg'; puts 'pg OK'"
           ruby -e "require 'mysql2'; puts 'mysql2 OK'"
-          ruby -e "require 'legion/version'; puts Legion::VERSION"
-          echo "=== Verify legionio binary ==="
-          legionio_bin="$GITHUB_WORKSPACE/legion-ruby/bin/legionio"
-          if [ -f "$legionio_bin" ]; then
-            echo "legionio binary found"
-            ruby "$legionio_bin" version || echo "legionio version check failed"
-          else
-            echo "WARNING: legionio binary not found in tarball"
-          fi
-          ruby -e "require 'legion/tty/version'; puts Legion::TTY::VERSION"
-          ruby -e "require 'legion/extensions/llm/gateway/version'; puts Legion::Extensions::LLM::Gateway::VERSION"
-          ruby -e "require 'legion/extensions/detect/version'; puts Legion::Extensions::Detect::VERSION"
+          ruby -e "require 'concurrent'; puts 'concurrent-ruby OK'"
 
           BREW_PREFIX="$(brew --prefix)"
           BAD_BUNDLES="$(find "$GITHUB_WORKSPACE/legion-ruby" -name '*.bundle' \
             -exec sh -c 'otool -L "$1" | grep -q "'"$BREW_PREFIX"'" && echo "$1"' _ {} \;)"
           if [ -n "$BAD_BUNDLES" ]; then
-            echo "ERROR: The following .bundle files still reference Homebrew prefix:"
+            echo "ERROR: .bundle files still reference Homebrew prefix:"
             echo "$BAD_BUNDLES"
             exit 1
           fi
           echo "No .bundle files reference Homebrew prefix — OK"
-
-          echo "=== Package version ==="
-          echo "Ruby: ${RUBY_VERSION}, Package revision: ${PKG_REVISION}"
-          echo "Full version: ${RUBY_VERSION}-${PKG_REVISION}"
 
       - name: Package artifact
         run: |
@@ -397,7 +368,7 @@ jobs:
 
       - name: Update formula
         run: |
-          FORMULA="Formula/legion.rb"
+          FORMULA="Formula/legionio-ruby.rb"
           URL="https://github.com/LegionIO/homebrew-tap/releases/download/${TAG}/${TARBALL}"
 
           # Update url
@@ -416,8 +387,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Formula/legion.rb
-          git commit -m "bump formula to ${FULL_VERSION}" || echo "No changes to commit"
+          git add Formula/legionio-ruby.rb
+          git commit -m "bump legionio-ruby to ${FULL_VERSION}" || echo "No changes to commit"
           git push
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
