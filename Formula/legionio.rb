@@ -1,9 +1,9 @@
 class Legionio < Formula
   desc "LegionIO async job engine and agentic AI daemon"
   homepage "https://github.com/LegionIO/LegionIO"
-  url "https://github.com/LegionIO/homebrew-tap/releases/download/legionio-1.4.79-1/legionio-gems-1.4.79-1.tar.gz"
-  sha256 "cf4000ac47350b2ea52bedaef2af7823a1ea99a298f83d24b3f1a7fcdf9ee8d2"
-  version "1.4.79-1"
+  url "https://github.com/LegionIO/homebrew-tap/releases/download/legionio-1.4.79-2/legionio-gems-1.4.79-2.tar.gz"
+  sha256 "ad38b3484efb68bc45914419b5170c136d09de18e900ec6fb9655961b345affd"
+  version "1.4.79-2"
   license "Apache-2.0"
 
   depends_on "legionio/tap/legionio-ruby"
