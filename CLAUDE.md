@@ -13,8 +13,11 @@ Homebrew tap providing formula installation of the `legion` CLI tool on macOS. U
 ```
 homebrew-tap/
 ├── Formula/
-│   ├── legion.rb              # Main formula: prebuilt Ruby tarball + Redis
-│   └── legion-dev.rb          # Meta-formula: full development stack
+│   ├── legionio-ruby.rb       # Ruby 3.4.8 runtime with YJIT and vendored native gems
+│   ├── legionio.rb            # LegionIO daemon + operational CLI (legionio start, lex, tasks, mcp)
+│   ├── legion-tty.rb          # Interactive terminal shell + AI chat (legion command)
+│   ├── legion-dev.rb          # Meta-formula: full development stack
+│   └── legion.rb              # DEPRECATED (2026-03-20): legacy monolithic formula
 ├── .github/
 │   └── workflows/
 │       ├── test.yml           # Brew test-bot CI (install + test + audit on macOS)
@@ -24,32 +27,56 @@ homebrew-tap/
 
 ## Formulas
 
-### `Formula/legion.rb` — Main Formula
+### `Formula/legionio-ruby.rb` — Ruby Runtime
 
-Installs the `legionio` gem as a standalone Homebrew package using a prebuilt Ruby tarball:
+Installs a self-contained Ruby 3.4.8 with YJIT and pre-compiled native gems:
 
-- **Source**: Prebuilt tarball from GitHub Releases (`https://github.com/LegionIO/homebrew-tap/releases/download/ruby-{VERSION}/legion-ruby-{VERSION}-darwin-arm64.tar.gz`)
-- **Dependencies**: `redis` (required for tracing and dream cycle); NO `ruby` dependency — Ruby is bundled in the tarball
-- **Optional dependencies**: `ollama`, `postgresql@17`, `rabbitmq`, `vault`
-- **Install method**: Unpacks tarball to `libexec`, rewrites Ruby shebangs from build-machine paths to installed paths, then creates wrapper scripts that set `PATH`, `RUBYLIB`, `GEM_HOME`, `GEM_PATH`, and `DYLD_FALLBACK_LIBRARY_PATH` to the bundled paths
-- **No post_install**: example configs are written to `share/legionio/examples/` during install; users run `legion config scaffold` to copy them to `~/.legionio/settings/`
-- **Pre-installed gems in tarball**: `legionio` + all dependencies, `legion-data` + `sqlite3`, `legion-llm` + `ruby_llm`, `legion-tty` + tty-ruby gems, `lex-llm-gateway` (metering + fleet dispatch), `lex-detect` (local environment scanning), `pg` (vendored libpq), `mysql2` (vendored libmysqlclient), `bundler`
-- **Service**: `brew services start legion` runs `legion start --log-level info` via launchd (macOS) or systemd (Linux)
+- **Source**: Prebuilt tarball from GitHub Releases (`https://github.com/LegionIO/homebrew-tap/releases/download/ruby-{VERSION}-{REVISION}/legion-ruby-{VERSION}-{REVISION}-darwin-arm64.tar.gz`)
+- **Dependencies**: `openssl@3`, `snappy` — no separate Ruby installation needed
+- **Install method**: Unpacks to `libexec`, rewrites Ruby shebangs to installed paths
+- **Pre-installed native gems**: `sqlite3`, `pg` (vendored libpq), `mysql2` (vendored libmysqlclient), `oj`, `bundler`
+- **Test**: checks `ruby -v`, YJIT enablement, `sqlite3` and `oj` require
+
+### `Formula/legionio.rb` — Daemon Formula
+
+Installs the `legionio` gem as a standalone Homebrew package using a gems-only tarball:
+
+- **Source**: Gems tarball from GitHub Releases (no Ruby compilation needed — uses `legionio-ruby`)
+- **Dependencies**: `legionio-ruby` (required), `redis` (required); `ollama`, `postgresql@17`, `rabbitmq`, `vault` (optional)
+- **Install method**: Installs gems to `libexec/gems`, creates `legionio` wrapper script with correct `GEM_PATH` pointing to both gem dir and `legionio-ruby` gem dir
+- **Service**: `brew services start legionio` runs `legionio start --log-level info` via launchd/systemd
   - Logs: `$(brew --prefix)/var/log/legion/legion.log`
   - Data: `$(brew --prefix)/var/lib/legion/`
-  - PID: managed by launchd/systemd (not Legion's own `--pidfile`)
-  - Uses `opt_bin` for upgrade-safe binary path
+- **Test**: `legionio version` must output the expected version string
+
+### `Formula/legion-tty.rb` — Terminal Shell Formula
+
+Installs the `legion-tty` gem with all tty-ruby dependencies:
+
+- **Source**: Gems tarball from GitHub Releases
+- **Dependencies**: `legionio` (and transitively `legionio-ruby`)
+- **Install method**: Installs gems to `libexec/gems`, creates `legion` wrapper with `GEM_PATH` layered over daemon gems and ruby gems
+- **post_install**: Fetches and rehashes TLS certificates (rubygems.org, github.com) into `openssl@3` cert dir
+- **Example configs**: Written to `share/legionio/examples/` during install; users run `legionio config scaffold` to copy to `~/.legionio/settings/`
 - **Test**: `legion version` must output the expected version string
 
 ### `Formula/legion-dev.rb` — Development Meta-Formula
 
-A meta-formula that depends on `legionio/tap/legion` and installs the full development stack:
+A meta-formula that installs the full development stack:
 
-- **Additional dependencies**: `ollama`, `postgresql@17`, `rabbitmq`, `rbenv` (recommended for managing Ruby versions, not required), `redis`, `vault`
-- **Bundled Ruby**: comes from the `legion` formula's prebuilt tarball — `legion-dev` does not install a separate Ruby
-- **No binary**: delegates the `legion` CLI to the `legion` formula
+- **Dependencies**: `legion-tty`, `ollama`, `postgresql@17`, `rabbitmq`, `rbenv` (recommended), `redis`, `vault`
+- **No binary**: delegates `legion` to `legion-tty` and `legionio` to the `legionio` formula
 - **Install**: writes a README to prefix only (no gem install)
 - **Test**: runs `legion version`
+
+### `Formula/legion.rb` — DEPRECATED
+
+The legacy monolithic formula (deprecated 2026-03-20). Replaced by the `legionio-ruby` + `legionio` + `legion-tty` split. Existing users should migrate:
+
+```bash
+brew uninstall legion
+brew install legionio legion-tty
+```
 
 ## Build Workflow (`build-ruby.yml`)
 
@@ -105,16 +132,17 @@ When the bundled Ruby version needs to change:
 
 Example formula reference:
 ```ruby
-url "https://github.com/LegionIO/homebrew-tap/releases/download/ruby-3.4.8-5/legion-ruby-3.4.8-5-darwin-arm64.tar.gz"
-sha256 "dd94bea92a0c9960ba2a034e8c9911ac69c81a86dd187fd0476463fbab2c8c13"
-version "3.4.8-5"
+url "https://github.com/LegionIO/homebrew-tap/releases/download/ruby-3.4.8-13/legion-ruby-3.4.8-13-darwin-arm64.tar.gz"
+sha256 "3839ccedf2c31f3434f2bb4984e92664c9e6c17ef0517efda2cca2c0e0f311e3"
+version "3.4.8-13"
 ```
 
 ### Current Version
 
 - **Bundled Ruby**: 3.4.8 (compiled with YJIT, self-contained with vendored native libs)
-- **Current package version**: `3.4.8-7` (Ruby 3.4.8, package revision 7)
-- **Legion gem version**: tracked via gems pre-installed in the tarball
+- **Current package version**: `3.4.8-13` (Ruby 3.4.8, package revision 13)
+- **legionio gem version**: 1.4.78-1 (separate gems tarball)
+- **legion-tty gem version**: 0.4.28-1 (separate gems tarball)
 
 ## CI (`test.yml`)
 
