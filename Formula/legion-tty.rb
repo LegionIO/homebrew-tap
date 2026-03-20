@@ -1,9 +1,9 @@
 class LegionTty < Formula
   desc "LegionIO interactive terminal shell and AI chat"
   homepage "https://github.com/LegionIO/LegionIO"
-  url "https://github.com/LegionIO/homebrew-tap/releases/download/legion-tty-0.4.28-2/legion-tty-gems-0.4.28-2.tar.gz"
-  sha256 "825ac8256409bf1e5e12f2deb1d7a12983ca10b4e7d08308a5a1c57b49c9901e"
-  version "0.4.28-2"
+  url "https://github.com/LegionIO/homebrew-tap/releases/download/legion-tty-0.4.28-3/legion-tty-gems-0.4.28-3.tar.gz"
+  sha256 "cb1d8de9a6d5ddd708ae5424fdbea8ba40a8f89342c6b06b91cf9e6caa24c012"
+  version "0.4.28-3"
   license "Apache-2.0"
 
   depends_on "legionio/tap/legionio"
