@@ -28,7 +28,10 @@ class LegionTty < Formula
       DYLD_FALLBACK_LIBRARY_PATH: ruby_formula.opt_libexec/"libexec"
     }
 
-    (bin/"legion").write_env_script gem_home/"bin/legion", env
+    # The `legion` binstub is provided by the legionio gem (in the daemon formula).
+    # Use it from the daemon's GEM_HOME, with our extended GEM_PATH so TTY gems load.
+    daemon_bin = daemon_formula.opt_libexec/"gems/bin/legion"
+    (bin/"legion").write_env_script daemon_bin, env
 
     (share/"legionio/examples").mkpath
     write_example_configs(share/"legionio/examples")
