@@ -25,14 +25,23 @@ jobs:
           mkdir -p "$TAP_DIR"
           cp -a tap-src/. "$TAP_DIR/"
 
-      - name: Install formula
-        run: brew install legionio/tap/legion
+      - name: Install legion-tty (pulls legionio + legionio-ruby)
+        run: brew install legionio/tap/legion-tty
 
-      - name: Test formula
-        run: brew test legionio/tap/legion
+      - name: Test legionio-ruby
+        run: brew test legionio/tap/legionio-ruby
 
-      - name: Audit formula
-        run: brew audit --strict legionio/tap/legion || true
+      - name: Test legionio
+        run: brew test legionio/tap/legionio
+
+      - name: Test legion-tty
+        run: brew test legionio/tap/legion-tty
+
+      - name: Audit formulas
+        run: |
+          brew audit --strict legionio/tap/legionio-ruby || true
+          brew audit --strict legionio/tap/legionio || true
+          brew audit --strict legionio/tap/legion-tty || true
 
       - name: Cleanup tap
         if: always()
