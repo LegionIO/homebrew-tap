@@ -42,11 +42,28 @@ jobs:
           echo "full_version=${RUBY_VERSION}-${PKG_REVISION}" >> "$GITHUB_OUTPUT"
           echo "tarball=legion-ruby-${RUBY_VERSION}-${PKG_REVISION}-${SUFFIX}.tar.gz" >> "$GITHUB_OUTPUT"
 
+      - name: Cache Homebrew packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/Homebrew/downloads
+            ~/Library/Caches/Homebrew/api
+          key: brew-${{ matrix.suffix }}-${{ hashFiles('.github/workflows/build-ruby.yml') }}
+          restore-keys: brew-${{ matrix.suffix }}-
+
       - name: Install build dependencies
         run: |
           brew install openssl@3 libyaml rust postgresql@17 mysql-client sqlite snappy
 
+      - name: Cache compiled Ruby
+        uses: actions/cache@v4
+        id: ruby-cache
+        with:
+          path: legion-ruby
+          key: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v5-${{ hashFiles('.github/workflows/build-ruby.yml') }}
+
       - name: Download Ruby source
+        if: steps.ruby-cache.outputs.cache-hit != 'true'
         run: |
           MINOR="${RUBY_VERSION%.*}"
           curl -fSL "https://cache.ruby-lang.org/pub/ruby/${MINOR}/ruby-${RUBY_VERSION}.tar.gz" \
@@ -54,6 +71,7 @@ jobs:
           tar xzf "ruby-${RUBY_VERSION}.tar.gz"
 
       - name: Configure and compile Ruby
+        if: steps.ruby-cache.outputs.cache-hit != 'true'
         run: |
           cd "ruby-${RUBY_VERSION}"
           ./configure \

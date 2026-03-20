@@ -29,6 +29,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate gem version exists on RubyGems
+        run: |
+          MAX_ATTEMPTS=10
+          WAIT_SECONDS=30
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://rubygems.org/api/v2/rubygems/legionio/versions/${GEM_VERSION}.json")
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "Validated: legionio ${GEM_VERSION} exists on RubyGems (attempt ${i})"
+              exit 0
+            fi
+            echo "Attempt ${i}/${MAX_ATTEMPTS}: legionio ${GEM_VERSION} not found (HTTP ${HTTP_STATUS}), waiting ${WAIT_SECONDS}s..."
+            sleep $WAIT_SECONDS
+          done
+          echo "::error::legionio ${GEM_VERSION} not found on RubyGems after ${MAX_ATTEMPTS} attempts"
+          echo "Available versions:"
+          curl -s "https://rubygems.org/api/v1/versions/legionio.json" | jq -r '.[0:5] | .[].number'
+          exit 1
+
       - name: Compute version tag
         id: version
         run: |
@@ -56,7 +75,8 @@ jobs:
           export GEM_HOME="$GITHUB_WORKSPACE/daemon-gems"
           export GEM_PATH="$GITHUB_WORKSPACE/daemon-gems:$RUBY_GEM_DIR"
 
-          gem install legionio legion-data legion-transport legion-cache \
+          gem install legionio -v ">= ${GEM_VERSION}" --no-document
+          gem install legion-data legion-transport legion-cache \
             legion-crypt legion-settings legion-llm legion-gaia legion-mcp \
             legion-rbac legion-json legion-logging \
             lex-synapse lex-node lex-llm-gateway lex-metering lex-detect \
@@ -73,9 +93,17 @@ jobs:
           RUBY_GEM_DIR="$(find "$GITHUB_WORKSPACE/legion-ruby/lib/ruby/gems" -maxdepth 1 -type d | tail -1)"
           export GEM_PATH="$GITHUB_WORKSPACE/daemon-gems:$RUBY_GEM_DIR"
 
-          ruby -e "require 'legion/version'; puts Legion::VERSION"
+          INSTALLED="$(ruby -e "require 'legion/version'; puts Legion::VERSION")"
+          echo "Installed legionio: ${INSTALLED}"
           ruby -e "require 'legion/data/version'; puts Legion::Data::VERSION"
           ruby -e "require 'legion/transport/version'; puts Legion::Transport::VERSION"
+
+          if ruby -e "exit(Gem::Version.new('${INSTALLED}') >= Gem::Version.new('${GEM_VERSION}') ? 0 : 1)"; then
+            echo "Version check passed: ${INSTALLED} >= ${GEM_VERSION}"
+          else
+            echo "::error::Version mismatch: installed ${INSTALLED} < requested ${GEM_VERSION}"
+            exit 1
+          fi
 
       - name: Package
         run: |
