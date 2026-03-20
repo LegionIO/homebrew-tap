@@ -96,19 +96,23 @@ jobs:
 
           echo "=== Stripping legion/lex gems (must only live in legionio formula) ==="
           GEM_DIR="$GITHUB_WORKSPACE/legion-ruby/lib/ruby/gems"
+          STRIPPED=0
           find "$GEM_DIR" -maxdepth 2 -name "gems" -type d | while read -r gems_dir; do
-            for gem_dir in "$gems_dir"/{legionio-*,legion-*,lex-*}; do
-              [ -d "$gem_dir" ] && rm -rf "$gem_dir" && echo "  stripped gems/$(basename "$gem_dir")"
+            for gem_dir in "$gems_dir"/legionio-* "$gems_dir"/legion-* "$gems_dir"/lex-*; do
+              [ -d "$gem_dir" ] || continue
+              rm -rf "$gem_dir" && echo "  stripped gems/$(basename "$gem_dir")"
             done
             spec_dir="$(dirname "$gems_dir")/specifications"
-            for spec_file in "$spec_dir"/{legionio-*,legion-*,lex-*}; do
-              [ -f "$spec_file" ] && rm -f "$spec_file" && echo "  stripped specs/$(basename "$spec_file")"
+            for spec_file in "$spec_dir"/legionio-* "$spec_dir"/legion-* "$spec_dir"/lex-*; do
+              [ -f "$spec_file" ] || continue
+              rm -f "$spec_file" && echo "  stripped specs/$(basename "$spec_file")"
             done
             cache_dir="$(dirname "$gems_dir")/cache"
-            for cache_file in "$cache_dir"/{legionio-*,legion-*,lex-*}; do
-              [ -f "$cache_file" ] && rm -f "$cache_file"
+            for cache_file in "$cache_dir"/legionio-* "$cache_dir"/legion-* "$cache_dir"/lex-*; do
+              [ -f "$cache_file" ] || continue
+              rm -f "$cache_file"
             done
-          done
+          done || true
           echo "=== Strip complete ==="
 
           echo "=== Installed gems ==="
