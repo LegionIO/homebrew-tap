@@ -94,6 +94,23 @@ jobs:
           echo "=== Cleaning up old gem versions ==="
           gem cleanup
 
+          echo "=== Stripping legion/lex gems (must only live in legionio formula) ==="
+          GEM_DIR="$GITHUB_WORKSPACE/legion-ruby/lib/ruby/gems"
+          find "$GEM_DIR" -maxdepth 2 -name "gems" -type d | while read -r gems_dir; do
+            for gem_dir in "$gems_dir"/{legionio-*,legion-*,lex-*}; do
+              [ -d "$gem_dir" ] && rm -rf "$gem_dir" && echo "  stripped gems/$(basename "$gem_dir")"
+            done
+            spec_dir="$(dirname "$gems_dir")/specifications"
+            for spec_file in "$spec_dir"/{legionio-*,legion-*,lex-*}; do
+              [ -f "$spec_file" ] && rm -f "$spec_file" && echo "  stripped specs/$(basename "$spec_file")"
+            done
+            cache_dir="$(dirname "$gems_dir")/cache"
+            for cache_file in "$cache_dir"/{legionio-*,legion-*,lex-*}; do
+              [ -f "$cache_file" ] && rm -f "$cache_file"
+            done
+          done
+          echo "=== Strip complete ==="
+
           echo "=== Installed gems ==="
           gem list
 
@@ -321,7 +338,7 @@ jobs:
 
           gh release create "$TAG" \
             --title "Legion ${FULL_VERSION} (${SUFFIX})" \
-            --notes "Pre-compiled Ruby ${RUBY_VERSION} (package revision ${PKG_REVISION}) for Legion on ${SUFFIX}. Includes YJIT, pg, mysql2, legion-tty, and all Legion gems." \
+            --notes "Pre-compiled Ruby ${RUBY_VERSION} (package revision ${PKG_REVISION}) for Legion on ${SUFFIX}. Includes YJIT and native extension gems only (pg, mysql2, sqlite3, oj, puma, bootsnap). Legion/LEX gems are installed separately via the legionio and legion-tty formulas." \
             "$TARBALL"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
