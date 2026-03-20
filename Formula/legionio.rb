@@ -27,19 +27,21 @@ class Legionio < Formula
     ruby_bin = ruby_formula.opt_libexec/"bin"
     ruby_gem_dir = Dir[ruby_formula.opt_libexec/"lib/ruby/gems/*"].first || ruby_formula.opt_libexec/"lib/ruby/gems/3.4.0"
 
-    env = {
-      PATH:                       "#{ruby_bin}:$PATH",
-      GEM_PATH:                   "#{gem_home}:#{ruby_gem_dir}",
-      GEM_HOME:                   gem_home.to_s,
-      RUBYLIB:                    ruby_lib_path(ruby_formula),
-      DYLD_FALLBACK_LIBRARY_PATH: ruby_formula.opt_libexec/"libexec",
-      RUBYGEMS_GEMDEPS:           "",
-      BUNDLE_GEMFILE:             "",
-      RUBYOPT:                    "",
-      GEM_SPEC_CACHE:             "#{gem_home}/spec_cache"
-    }
-
-    (bin/"legionio").write_env_script gem_home/"bin/legionio", env
+    (bin/"legionio").write <<~BASH
+      #!/bin/bash
+      export PATH="#{ruby_bin}:$PATH"
+      export GEM_PATH="#{gem_home}:#{ruby_gem_dir}"
+      export GEM_HOME="#{gem_home}"
+      export RUBYLIB="#{ruby_lib_path(ruby_formula)}"
+      export DYLD_FALLBACK_LIBRARY_PATH="#{ruby_formula.opt_libexec}/libexec"
+      # Isolate from system/rbenv gems
+      export RUBYGEMS_GEMDEPS=""
+      export BUNDLE_GEMFILE=""
+      export RUBYOPT=""
+      export GEM_SPEC_CACHE="#{gem_home}/spec_cache"
+      exec "#{gem_home}/bin/legionio" "$@"
+    BASH
+    (bin/"legionio").chmod 0755
 
     (var/"log/legion").mkpath
     (var/"lib/legion").mkpath
