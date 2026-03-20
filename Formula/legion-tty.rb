@@ -25,7 +25,11 @@ class LegionTty < Formula
       GEM_PATH:                   "#{gem_home}:#{daemon_formula.opt_libexec}/gems:#{ruby_gem_dir}",
       GEM_HOME:                   gem_home.to_s,
       RUBYLIB:                    ruby_lib_path(ruby_formula),
-      DYLD_FALLBACK_LIBRARY_PATH: ruby_formula.opt_libexec/"libexec"
+      DYLD_FALLBACK_LIBRARY_PATH: ruby_formula.opt_libexec/"libexec",
+      RUBYGEMS_GEMDEPS:           "",
+      BUNDLE_GEMFILE:             "",
+      RUBYOPT:                    "",
+      GEM_SPEC_CACHE:             "#{gem_home}/spec_cache"
     }
 
     # The `legion` binstub is provided by the legionio gem (in the daemon formula).
