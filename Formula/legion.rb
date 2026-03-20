@@ -5,6 +5,7 @@ class Legion < Formula
   sha256 "3b7b77a8cdaa67db701d033d3c3f45b6f693f282cc0ffda31c55e1d495f21b44"
   version "3.4.8-14"
   license "Apache-2.0"
+  deprecate! date: "2026-03-20", because: "split into legionio-ruby + legionio + legion-tty"
 
   depends_on "openssl@3"
   depends_on "redis"
@@ -71,32 +72,13 @@ class Legion < Formula
 
   def caveats
     <<~EOS
-      Interactive shell (most users):
-        legion                           # rich terminal UI with onboarding
+      DEPRECATED: This formula has been split into 3 formulas for faster upgrades.
 
-      Operational CLI (daemon, extensions, tasks):
-        legionio start                   # start the daemon
-        legionio config scaffold         # generate config files
-        legionio lex list                # list extensions
-        legionio --help                  # all operational commands
+      To migrate:
+        brew uninstall legion
+        brew install legion-tty
 
-      Config:  ~/.legionio/settings/
-      Logs:    #{var}/log/legion/legion.log
-      Data:    #{var}/lib/legion/
-
-      Ruby 3.4.8 with YJIT is bundled — no separate Ruby installation needed.
-
-      To start Legion as a background service:
-        brew services start legion
-
-      Start Redis (required for tracing and dream cycle):
-        brew services start redis
-
-      Optional services:
-        brew services start rabbitmq         # job engine messaging
-        brew services start postgresql@17    # legion-data persistence
-        brew services start vault            # legion-crypt secrets
-        ollama serve                         # local LLM for legion chat
+      legion-tty installs legionio and legionio-ruby automatically.
     EOS
   end
 

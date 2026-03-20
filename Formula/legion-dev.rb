@@ -6,7 +6,7 @@ class LegionDev < Formula
   version "3.4.8-1"
   license "Apache-2.0"
 
-  depends_on "legionio/tap/legion"
+  depends_on "legionio/tap/legion-tty"
   depends_on "ollama"
   depends_on "postgresql@17"
   depends_on "rabbitmq"
@@ -17,14 +17,14 @@ class LegionDev < Formula
   def install
     (prefix/"README").write <<~EOS
       This is a meta-package that installs the full LegionIO development stack.
-      The legion CLI is provided by the legion formula.
+      The legion CLI is provided by the legion-tty formula. The legionio daemon CLI is provided by the legionio formula.
     EOS
   end
 
   def caveats
     <<~EOS
       Start all services for local development:
-        brew services start legion
+        brew services start legionio
         brew services start redis
         brew services start rabbitmq
         brew services start postgresql@17
