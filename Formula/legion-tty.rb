@@ -9,7 +9,11 @@ class LegionTty < Formula
   depends_on "legionio/tap/legionio"
 
   def install
-    libexec.install "gems"
+    gem_home = libexec/"gems"
+    gem_home.mkpath
+    %w[bin gems specifications extensions cache build_info doc plugins].each do |sub|
+      gem_home.install sub if (buildpath/sub).exist?
+    end
 
     ruby_formula = Formula["legionio-ruby"]
     daemon_formula = Formula["legionio"]
@@ -18,18 +22,13 @@ class LegionTty < Formula
 
     env = {
       PATH:                       "#{ruby_bin}:$PATH",
-      GEM_PATH:                   "#{libexec}/gems:#{daemon_formula.opt_libexec}/gems:#{ruby_gem_dir}",
-      GEM_HOME:                   "#{libexec}/gems",
+      GEM_PATH:                   "#{gem_home}:#{daemon_formula.opt_libexec}/gems:#{ruby_gem_dir}",
+      GEM_HOME:                   gem_home.to_s,
       RUBYLIB:                    ruby_lib_path(ruby_formula),
       DYLD_FALLBACK_LIBRARY_PATH: ruby_formula.opt_libexec/"libexec"
     }
 
-    legion_bin = libexec/"gems/bin/legion"
-    if legion_bin.exist?
-      (bin/"legion").write_env_script legion_bin, env
-    else
-      (bin/"legion").write_env_script ruby_bin/"legion", env
-    end
+    (bin/"legion").write_env_script gem_home/"bin/legion", env
 
     (share/"legionio/examples").mkpath
     write_example_configs(share/"legionio/examples")

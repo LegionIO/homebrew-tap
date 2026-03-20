@@ -14,7 +14,14 @@ class Legionio < Formula
   depends_on "vault" => :optional
 
   def install
-    libexec.install "gems"
+    gem_home = libexec/"gems"
+    gem_home.mkpath
+    # Homebrew strips the top-level tarball directory, so bin/, gems/,
+    # specifications/ etc. are at the build root — install them all
+    # into libexec/gems to reconstruct a complete GEM_HOME.
+    %w[bin gems specifications extensions cache build_info doc plugins].each do |sub|
+      gem_home.install sub if (buildpath/sub).exist?
+    end
 
     ruby_formula = Formula["legionio-ruby"]
     ruby_bin = ruby_formula.opt_libexec/"bin"
@@ -22,18 +29,13 @@ class Legionio < Formula
 
     env = {
       PATH:                       "#{ruby_bin}:$PATH",
-      GEM_PATH:                   "#{libexec}/gems:#{ruby_gem_dir}",
-      GEM_HOME:                   "#{libexec}/gems",
+      GEM_PATH:                   "#{gem_home}:#{ruby_gem_dir}",
+      GEM_HOME:                   gem_home.to_s,
       RUBYLIB:                    ruby_lib_path(ruby_formula),
       DYLD_FALLBACK_LIBRARY_PATH: ruby_formula.opt_libexec/"libexec"
     }
 
-    legionio_bin = libexec/"gems/bin/legionio"
-    if legionio_bin.exist?
-      (bin/"legionio").write_env_script legionio_bin, env
-    else
-      (bin/"legionio").write_env_script ruby_bin/"legionio", env
-    end
+    (bin/"legionio").write_env_script gem_home/"bin/legionio", env
 
     (var/"log/legion").mkpath
     (var/"lib/legion").mkpath
