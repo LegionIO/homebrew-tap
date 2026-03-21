@@ -1,0 +1,404 @@
+name: Build Legion
+
+on:
+  workflow_dispatch:
+    inputs:
+      ruby_version:
+        description: "Ruby version to build"
+        required: true
+        default: "3.4.8"
+      legionio_version:
+        description: "legionio gem version (validated against RubyGems)"
+        required: true
+        default: "1.4.95"
+      package_revision:
+        description: "Package revision (increment for same Ruby + gem versions)"
+        required: true
+        default: "1"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-14
+            arch: arm64
+            suffix: darwin-arm64
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      RUBY_VERSION: ${{ inputs.ruby_version }}
+      GEM_VERSION: ${{ inputs.legionio_version }}
+      PKG_REVISION: ${{ inputs.package_revision }}
+      SUFFIX: ${{ matrix.suffix }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate legionio gem exists on RubyGems
+        run: |
+          MAX_ATTEMPTS=10
+          WAIT_SECONDS=30
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://rubygems.org/api/v2/rubygems/legionio/versions/${GEM_VERSION}.json")
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "Validated: legionio ${GEM_VERSION} exists on RubyGems (attempt ${i})"
+              exit 0
+            fi
+            echo "Attempt ${i}/${MAX_ATTEMPTS}: legionio ${GEM_VERSION} not found (HTTP ${HTTP_STATUS}), waiting ${WAIT_SECONDS}s..."
+            sleep $WAIT_SECONDS
+          done
+          echo "::error::legionio ${GEM_VERSION} not found on RubyGems after ${MAX_ATTEMPTS} attempts"
+          echo "Available versions:"
+          curl -s "https://rubygems.org/api/v1/versions/legionio.json" | jq -r '.[0:5] | .[].number'
+          exit 1
+
+      - name: Compute version tag
+        id: version
+        run: |
+          echo "tag=legion-${GEM_VERSION}-${PKG_REVISION}" >> "$GITHUB_OUTPUT"
+          echo "full_version=${GEM_VERSION}-${PKG_REVISION}" >> "$GITHUB_OUTPUT"
+          echo "tarball=legion-${GEM_VERSION}-${PKG_REVISION}-${SUFFIX}.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Homebrew packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/Homebrew/downloads
+            ~/Library/Caches/Homebrew/api
+          key: brew-${{ matrix.suffix }}-${{ hashFiles('.github/workflows/build-legion.yml') }}
+          restore-keys: brew-${{ matrix.suffix }}-
+
+      - name: Install build dependencies
+        run: |
+          brew install openssl@3 libyaml rust postgresql@17 mysql-client sqlite snappy
+
+      - name: Cache compiled Ruby
+        uses: actions/cache@v4
+        id: ruby-cache
+        with:
+          path: legion-ruby
+          key: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v6-${{ hashFiles('.github/workflows/build-legion.yml') }}
+
+      - name: Download Ruby source
+        if: steps.ruby-cache.outputs.cache-hit != 'true'
+        run: |
+          MINOR="${RUBY_VERSION%.*}"
+          curl -fSL "https://cache.ruby-lang.org/pub/ruby/${MINOR}/ruby-${RUBY_VERSION}.tar.gz" \
+            -o "ruby-${RUBY_VERSION}.tar.gz"
+          tar xzf "ruby-${RUBY_VERSION}.tar.gz"
+
+      - name: Configure and compile Ruby
+        if: steps.ruby-cache.outputs.cache-hit != 'true'
+        run: |
+          cd "ruby-${RUBY_VERSION}"
+          ./configure \
+            --enable-yjit \
+            --enable-load-relative \
+            --disable-install-doc \
+            --prefix="$GITHUB_WORKSPACE/legion-ruby" \
+            --with-openssl-dir="$(brew --prefix openssl@3)" \
+            --with-libyaml-dir="$(brew --prefix libyaml)"
+          make -j$(sysctl -n hw.ncpu)
+          make install
+
+      - name: Install native extension gems
+        run: |
+          export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
+
+          gem install bundler --no-document --force
+          bundle config set --global ssl_verify_mode none
+
+          gem install sqlite3 --no-document -- \
+            --with-sqlite3-dir="$(brew --prefix sqlite)"
+          gem install oj --no-document
+          gem install puma --no-document
+          gem install nio4r --no-document
+          gem install racc --no-document --force
+          gem install snappy --no-document -- \
+            --with-snappy-dir="$(brew --prefix snappy)"
+          gem install concurrent-ruby concurrent-ruby-ext --no-document
+          gem install pg --no-document -- \
+            --with-pg-config="$(brew --prefix postgresql@17)/bin/pg_config"
+          gem install mysql2 --no-document -- \
+            --with-mysql-config="$(brew --prefix mysql-client)/bin/mysql_config"
+          gem install bootsnap --no-document
+          gem install msgpack --no-document
+          gem install ed25519 --no-document
+          gem install rbtree --no-document
+
+      - name: Install Legion gems
+        run: |
+          export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
+
+          gem install legionio -v ">= ${GEM_VERSION}" --no-document
+          gem install legion-data legion-transport legion-cache \
+            legion-crypt legion-settings legion-llm legion-gaia legion-mcp \
+            legion-rbac legion-json legion-logging \
+            --no-document
+          gem install lex-synapse lex-node lex-llm-gateway lex-metering lex-detect \
+            lex-http lex-tasker lex-conditioner lex-transformer lex-scheduler \
+            lex-lex lex-health lex-exec lex-codegen lex-telemetry lex-audit \
+            --no-document
+          gem install legion-tty --no-document
+
+          echo "=== Cleaning up old gem versions ==="
+          gem cleanup
+
+          echo "=== Installed gems ==="
+          gem list
+
+      - name: Vendor native libraries
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/legion-ruby/libexec"
+          LIBEXEC="$GITHUB_WORKSPACE/legion-ruby/libexec"
+          BREW_PREFIX="$(brew --prefix)"
+
+          find_dylib() {
+            local dir="$1"
+            local pattern="$2"
+            local found
+            found="$(find "$dir" -maxdepth 1 -name "${pattern}" -type f -o -name "${pattern}" -type l | head -1)"
+            if [ -n "$found" ] && [ -L "$found" ]; then
+              readlink -f "$found" 2>/dev/null || greadlink -f "$found" 2>/dev/null || echo "$found"
+            else
+              echo "$found"
+            fi
+          }
+
+          copy_with_deps() {
+            local src="$1"
+            if [ ! -f "$src" ]; then
+              echo "WARNING: skipping missing dylib: $src"
+              return
+            fi
+            local name
+            name="$(basename "$src")"
+            if [ -f "$LIBEXEC/$name" ]; then
+              return
+            fi
+            echo "Vendoring: $name"
+            cp -L "$src" "$LIBEXEC/$name"
+            otool -L "$src" | awk '{print $1}' | grep "$BREW_PREFIX" | while read -r dep; do
+              dep_basename="$(basename "$dep")"
+              if [ "$dep_basename" != "$name" ] && [ -f "$dep" ]; then
+                copy_with_deps "$dep"
+              elif [ "$dep_basename" != "$name" ]; then
+                local dep_dir
+                dep_dir="$(dirname "$src")"
+                if [ -f "$dep_dir/$dep_basename" ]; then
+                  copy_with_deps "$dep_dir/$dep_basename"
+                fi
+              fi
+            done
+          }
+
+          PG_LIB="$(brew --prefix postgresql@17)/lib"
+          MYSQL_LIB="$(brew --prefix mysql-client)/lib"
+          SSL_LIB="$(brew --prefix openssl@3)/lib"
+          YAML_LIB="$(brew --prefix libyaml)/lib"
+          SNAPPY_LIB="$(brew --prefix snappy)/lib"
+
+          PQ_DYLIB="$(find_dylib "$PG_LIB" "libpq.*.dylib")"
+          MYSQL_DYLIB="$(find_dylib "$MYSQL_LIB" "libmysqlclient.*.dylib")"
+          SSL_DYLIB="$(find_dylib "$SSL_LIB" "libssl.*.dylib")"
+          CRYPTO_DYLIB="$(find_dylib "$SSL_LIB" "libcrypto.*.dylib")"
+          YAML_DYLIB="$(find_dylib "$YAML_LIB" "libyaml*.dylib")"
+          SNAPPY_DYLIB="$(find_dylib "$SNAPPY_LIB" "libsnappy.*.dylib")"
+
+          copy_with_deps "$PQ_DYLIB"
+          copy_with_deps "$MYSQL_DYLIB"
+          copy_with_deps "$SSL_DYLIB"
+          copy_with_deps "$CRYPTO_DYLIB"
+          copy_with_deps "$YAML_DYLIB"
+          copy_with_deps "$SNAPPY_DYLIB"
+
+          echo "=== Vendored files ==="
+          ls -la "$LIBEXEC"
+
+      - name: Rewrite dylib load paths
+        run: |
+          LIBEXEC="$GITHUB_WORKSPACE/legion-ruby/libexec"
+          BREW_PREFIX="$(brew --prefix)"
+
+          for dylib in "$LIBEXEC"/*.dylib; do
+            name="$(basename "$dylib")"
+            install_name_tool -id "@rpath/$name" "$dylib"
+          done
+
+          for dylib in "$LIBEXEC"/*.dylib; do
+            for dep in "$LIBEXEC"/*.dylib; do
+              dep_name="$(basename "$dep")"
+              old_ref="$(otool -L "$dylib" | awk '{print $1}' | grep "${BREW_PREFIX}.*${dep_name}" | head -1)"
+              if [ -n "$old_ref" ]; then
+                install_name_tool -change "$old_ref" "@rpath/$dep_name" "$dylib"
+              fi
+            done
+          done
+
+          RUBY_BIN="$GITHUB_WORKSPACE/legion-ruby/bin/ruby"
+          LIBRUBY_PATH="$(find "$GITHUB_WORKSPACE/legion-ruby/lib" -name 'libruby*.dylib' | head -1)"
+
+          for target in "$RUBY_BIN" $LIBRUBY_PATH; do
+            [ -f "$target" ] || continue
+            otool -L "$target" | awk '{print $1}' | grep "$BREW_PREFIX" | while read -r ref; do
+              ref_name="$(basename "$ref")"
+              if [ -f "$LIBEXEC/$ref_name" ]; then
+                install_name_tool -change "$ref" "@rpath/$ref_name" "$target"
+              fi
+            done
+            install_name_tool -add_rpath "@executable_path/../libexec" "$target" 2>/dev/null || true
+            install_name_tool -add_rpath "$LIBEXEC" "$target" 2>/dev/null || true
+          done
+
+          if [ -n "$LIBRUBY_PATH" ]; then
+            libruby_name="$(basename "$LIBRUBY_PATH")"
+            install_name_tool -id "@rpath/$libruby_name" "$LIBRUBY_PATH" 2>/dev/null || true
+          fi
+
+          find "$GITHUB_WORKSPACE/legion-ruby" -name '*.bundle' | while read -r bundle; do
+            otool -L "$bundle" | awk '{print $1}' | grep "$BREW_PREFIX" | while read -r ref; do
+              ref_name="$(basename "$ref")"
+              if [ -f "$LIBEXEC/$ref_name" ]; then
+                install_name_tool -change "$ref" "@rpath/$ref_name" "$bundle"
+              fi
+            done
+            install_name_tool -add_rpath "@executable_path/../libexec" "$bundle" 2>/dev/null || true
+            install_name_tool -add_rpath "$LIBEXEC" "$bundle" 2>/dev/null || true
+          done
+
+      - name: Ad-hoc codesign all native binaries
+        run: |
+          find "$GITHUB_WORKSPACE/legion-ruby" -name '*.bundle' | while read -r bundle; do
+            codesign --force --sign - "$bundle"
+          done
+          find "$GITHUB_WORKSPACE/legion-ruby" -name '*.dylib' | while read -r dylib; do
+            codesign --force --sign - "$dylib"
+          done
+          codesign --force --sign - "$GITHUB_WORKSPACE/legion-ruby/bin/ruby"
+
+          UNSIGNED="$(find "$GITHUB_WORKSPACE/legion-ruby" \( -name '*.bundle' -o -name '*.dylib' \) \
+            -exec sh -c 'codesign -v "$1" 2>&1 | grep -q "not signed" && echo "$1"' _ {} \;)"
+          if [ -n "$UNSIGNED" ]; then
+            echo "ERROR: unsigned binaries remain:"
+            echo "$UNSIGNED"
+            exit 1
+          fi
+          echo "All native binaries signed"
+
+      - name: Verify build
+        run: |
+          export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
+
+          echo "=== Ruby ==="
+          ruby -v
+          ruby -e "RubyVM::YJIT.enable; puts 'YJIT: ' + RubyVM::YJIT.enabled?.to_s"
+
+          echo "=== Native gems ==="
+          ruby -e "require 'sqlite3'; puts 'sqlite3 OK'"
+          ruby -e "require 'oj'; puts 'oj OK'"
+          ruby -e "require 'puma'; puts 'puma OK'"
+          ruby -e "require 'snappy'; puts 'snappy OK'"
+          ruby -e "require 'pg'; puts 'pg OK'"
+          ruby -e "require 'mysql2'; puts 'mysql2 OK'"
+          ruby -e "require 'concurrent'; puts 'concurrent-ruby OK'"
+          ruby -e "require 'bootsnap'; puts 'bootsnap OK'"
+          ruby -e "require 'msgpack'; puts 'msgpack OK'"
+          ruby -e "require 'ed25519'; puts 'ed25519 OK'"
+          ruby -e "require 'rbtree'; puts 'rbtree OK'"
+
+          echo "=== Legion gems ==="
+          INSTALLED="$(ruby -e "require 'legion/version'; puts Legion::VERSION")"
+          echo "legionio: ${INSTALLED}"
+          ruby -e "require 'legion/data/version'; puts 'legion-data: ' + Legion::Data::VERSION"
+          ruby -e "require 'legion/transport/version'; puts 'legion-transport: ' + Legion::Transport::VERSION"
+          ruby -e "require 'legion/tty/version'; puts 'legion-tty: ' + Legion::TTY::VERSION"
+
+          if ruby -e "exit(Gem::Version.new('${INSTALLED}') >= Gem::Version.new('${GEM_VERSION}') ? 0 : 1)"; then
+            echo "Version check passed: ${INSTALLED} >= ${GEM_VERSION}"
+          else
+            echo "::error::Version mismatch: installed ${INSTALLED} < requested ${GEM_VERSION}"
+            exit 1
+          fi
+
+          BREW_PREFIX="$(brew --prefix)"
+          BAD_BUNDLES="$(find "$GITHUB_WORKSPACE/legion-ruby" -name '*.bundle' \
+            -exec sh -c 'otool -L "$1" | grep -q "'"$BREW_PREFIX"'" && echo "$1"' _ {} \;)"
+          if [ -n "$BAD_BUNDLES" ]; then
+            echo "ERROR: .bundle files still reference Homebrew prefix:"
+            echo "$BAD_BUNDLES"
+            exit 1
+          fi
+          echo "No .bundle files reference Homebrew prefix"
+
+      - name: Package
+        run: |
+          TARBALL="${{ steps.version.outputs.tarball }}"
+          tar czf "$TARBALL" legion-ruby/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.tarball }}
+          path: ${{ steps.version.outputs.tarball }}
+          retention-days: 30
+
+      - name: Create GitHub Release
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          TARBALL="${{ steps.version.outputs.tarball }}"
+          FULL_VERSION="${{ steps.version.outputs.full_version }}"
+          gh release create "$TAG" \
+            --title "Legion ${FULL_VERSION} (${SUFFIX})" \
+            --notes "Legion ${GEM_VERSION} with Ruby ${RUBY_VERSION} (revision ${PKG_REVISION}). Self-contained: Ruby + YJIT + all native gems + all Legion/LEX gems + legion-tty." \
+            "$TARBALL"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-formula:
+    needs: build
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download tarball for SHA256
+        run: |
+          TAG="legion-${GEM_VERSION}-${PKG_REVISION}"
+          TARBALL="legion-${GEM_VERSION}-${PKG_REVISION}-darwin-arm64.tar.gz"
+          gh release download "$TAG" --pattern "$TARBALL" --clobber
+          SHA="$(shasum -a 256 "$TARBALL" | awk '{print $1}')"
+          echo "SHA256=$SHA" >> "$GITHUB_ENV"
+          echo "TARBALL=$TARBALL" >> "$GITHUB_ENV"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "FULL_VERSION=${GEM_VERSION}-${PKG_REVISION}" >> "$GITHUB_ENV"
+        env:
+          GEM_VERSION: ${{ inputs.legionio_version }}
+          PKG_REVISION: ${{ inputs.package_revision }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update formula
+        run: |
+          FORMULA="Formula/legionio.rb"
+          URL="https://github.com/LegionIO/homebrew-tap/releases/download/${TAG}/${TARBALL}"
+          sed -i '' "s|url \".*\"|url \"${URL}\"|" "$FORMULA"
+          sed -i '' "s|sha256 \".*\"|sha256 \"${SHA256}\"|" "$FORMULA"
+          sed -i '' "s|version \".*\"|version \"${FULL_VERSION}\"|" "$FORMULA"
+          echo "=== Updated formula ==="
+          head -8 "$FORMULA"
+
+      - name: Commit formula update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/legionio.rb
+          git commit -m "bump legionio to ${FULL_VERSION}" || echo "No changes to commit"
+          git push
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
