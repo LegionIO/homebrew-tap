@@ -119,6 +119,7 @@ class Legionio < Formula
     working_dir var/"lib/legion"
     log_path var/"log/legion/legion.log"
     error_log_path var/"log/legion/legion.log"
+    environment_variables LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8"
   end
 
   def post_install
