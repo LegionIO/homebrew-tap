@@ -78,10 +78,11 @@ jobs:
           gem install legionio -v ">= ${GEM_VERSION}" --no-document
           gem install legion-data legion-transport legion-cache \
             legion-crypt legion-settings legion-llm legion-gaia legion-mcp \
-            legion-rbac legion-json legion-logging \
+            legion-rbac legion-json legion-logging legion-tty \
             lex-synapse lex-node lex-llm-gateway lex-metering lex-detect \
             lex-http lex-tasker lex-conditioner lex-transformer lex-scheduler \
             lex-lex lex-health lex-exec lex-codegen lex-telemetry lex-audit \
+            lex-privatecore lex-tick \
             --no-document
 
           echo "=== Installed daemon gems ==="
