@@ -42,7 +42,16 @@ jobs:
           echo "full_version=${RUBY_VERSION}-${PKG_REVISION}" >> "$GITHUB_OUTPUT"
           echo "tarball=legion-ruby-${RUBY_VERSION}-${PKG_REVISION}-${SUFFIX}.tar.gz" >> "$GITHUB_OUTPUT"
 
+      - name: Cache compiled Ruby
+        uses: actions/cache@v4
+        id: ruby-cache
+        with:
+          path: legion-ruby
+          key: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v5-${{ hashFiles('.github/workflows/build-ruby.yml') }}
+          restore-keys: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v5-
+
       - name: Cache Homebrew packages
+        if: steps.ruby-cache.outputs.cache-hit != 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -52,28 +61,9 @@ jobs:
           restore-keys: brew-${{ matrix.suffix }}-
 
       - name: Install build dependencies
+        if: steps.ruby-cache.outputs.cache-hit != 'true'
         run: |
-          PACKAGES="openssl@3 libyaml rust postgresql@17 mysql-client sqlite snappy"
-          MISSING=""
-          for pkg in $PACKAGES; do
-            if ! brew list "$pkg" &>/dev/null; then
-              MISSING="$MISSING $pkg"
-            fi
-          done
-          if [ -n "$MISSING" ]; then
-            echo "Installing:$MISSING"
-            brew install $MISSING
-          else
-            echo "All build dependencies already installed"
-          fi
-
-      - name: Cache compiled Ruby
-        uses: actions/cache@v4
-        id: ruby-cache
-        with:
-          path: legion-ruby
-          key: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v5-${{ hashFiles('.github/workflows/build-ruby.yml') }}
-          restore-keys: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v5-
+          brew install openssl@3 libyaml rust postgresql@17 mysql-client sqlite snappy
 
       - name: Download Ruby source
         if: steps.ruby-cache.outputs.cache-hit != 'true'
