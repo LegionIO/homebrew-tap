@@ -23,6 +23,13 @@ permissions:
 
 jobs:
   build:
+    outputs:
+      gem_version: ${{ steps.vars.outputs.gem_version }}
+      pkg_revision: ${{ steps.vars.outputs.pkg_revision }}
+      tag: ${{ steps.version.outputs.tag }}
+      tarball: ${{ steps.version.outputs.tarball }}
+      full_version: ${{ steps.version.outputs.full_version }}
+
     strategy:
       matrix:
         include:
@@ -41,6 +48,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Export version vars
+        id: vars
+        run: |
+          echo "gem_version=${GEM_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "pkg_revision=${PKG_REVISION}" >> "$GITHUB_OUTPUT"
 
       - name: Validate legionio gem exists on RubyGems
         run: |
@@ -379,17 +392,18 @@ jobs:
 
       - name: Download tarball for SHA256
         run: |
-          TAG="legion-${GEM_VERSION}-${PKG_REVISION}"
-          TARBALL="legion-${GEM_VERSION}-${PKG_REVISION}-darwin-arm64.tar.gz"
+          TAG="${LEGION_TAG}"
+          TARBALL="${LEGION_TARBALL}"
           gh release download "$TAG" --pattern "$TARBALL" --clobber
           SHA="$(shasum -a 256 "$TARBALL" | awk '{print $1}')"
           echo "SHA256=$SHA" >> "$GITHUB_ENV"
           echo "TARBALL=$TARBALL" >> "$GITHUB_ENV"
           echo "TAG=$TAG" >> "$GITHUB_ENV"
-          echo "FULL_VERSION=${GEM_VERSION}-${PKG_REVISION}" >> "$GITHUB_ENV"
+          echo "FULL_VERSION=${LEGION_FULL_VERSION}" >> "$GITHUB_ENV"
         env:
-          GEM_VERSION: ${{ inputs.legionio_version || github.event.client_payload.legionio_version }}
-          PKG_REVISION: ${{ inputs.package_revision || github.event.client_payload.package_revision || '1' }}
+          LEGION_TAG: ${{ needs.build.outputs.tag }}
+          LEGION_TARBALL: ${{ needs.build.outputs.tarball }}
+          LEGION_FULL_VERSION: ${{ needs.build.outputs.full_version }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update formula
