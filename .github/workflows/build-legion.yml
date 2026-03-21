@@ -24,8 +24,8 @@ permissions:
 jobs:
   build:
     outputs:
-      gem_version: ${{ steps.vars.outputs.gem_version }}
-      pkg_revision: ${{ steps.vars.outputs.pkg_revision }}
+      gem_version: ${{ steps.version.outputs.gem_version }}
+      pkg_revision: ${{ steps.version.outputs.pkg_revision }}
       tag: ${{ steps.version.outputs.tag }}
       tarball: ${{ steps.version.outputs.tarball }}
       full_version: ${{ steps.version.outputs.full_version }}
@@ -49,12 +49,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Export version vars
-        id: vars
-        run: |
-          echo "gem_version=${GEM_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "pkg_revision=${PKG_REVISION}" >> "$GITHUB_OUTPUT"
-
       - name: Validate legionio gem exists on RubyGems
         run: |
           MAX_ATTEMPTS=10
@@ -74,12 +68,23 @@ jobs:
           curl -s "https://rubygems.org/api/v1/versions/legionio.json" | jq -r '.[0:5] | .[].number'
           exit 1
 
-      - name: Compute version tag
+      - name: Compute version tag (auto-increment revision)
         id: version
         run: |
-          echo "tag=legion-${GEM_VERSION}-${PKG_REVISION}" >> "$GITHUB_OUTPUT"
-          echo "full_version=${GEM_VERSION}-${PKG_REVISION}" >> "$GITHUB_OUTPUT"
-          echo "tarball=legion-${GEM_VERSION}-${PKG_REVISION}-${SUFFIX}.tar.gz" >> "$GITHUB_OUTPUT"
+          LATEST=$(gh release list --limit 100 --json tagName --jq \
+            '[.[] | select(.tagName | startswith("legion-'"${GEM_VERSION}"'-")) | .tagName | ltrimstr("legion-'"${GEM_VERSION}"'-") | tonumber] | max // 0')
+          NEXT=$(( LATEST + 1 ))
+          if [ "${PKG_REVISION}" -gt "${NEXT}" ] 2>/dev/null; then
+            NEXT="${PKG_REVISION}"
+          fi
+          echo "Existing max revision for ${GEM_VERSION}: ${LATEST}, using: ${NEXT}"
+          echo "gem_version=${GEM_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=legion-${GEM_VERSION}-${NEXT}" >> "$GITHUB_OUTPUT"
+          echo "full_version=${GEM_VERSION}-${NEXT}" >> "$GITHUB_OUTPUT"
+          echo "tarball=legion-${GEM_VERSION}-${NEXT}-${SUFFIX}.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "pkg_revision=${NEXT}" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache compiled Ruby
         uses: actions/cache@v4
