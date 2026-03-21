@@ -79,7 +79,19 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          brew install openssl@3 libyaml rust postgresql@17 mysql-client sqlite snappy
+          PACKAGES="openssl@3 libyaml rust postgresql@17 mysql-client sqlite snappy"
+          MISSING=""
+          for pkg in $PACKAGES; do
+            if ! brew list "$pkg" &>/dev/null; then
+              MISSING="$MISSING $pkg"
+            fi
+          done
+          if [ -n "$MISSING" ]; then
+            echo "Installing:$MISSING"
+            brew install $MISSING
+          else
+            echo "All build dependencies already installed"
+          fi
 
       - name: Cache compiled Ruby
         uses: actions/cache@v4
@@ -87,6 +99,7 @@ jobs:
         with:
           path: legion-ruby
           key: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v6-${{ hashFiles('.github/workflows/build-legion.yml') }}
+          restore-keys: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v6-
 
       - name: Download Ruby source
         if: steps.ruby-cache.outputs.cache-hit != 'true'
@@ -111,6 +124,7 @@ jobs:
           make install
 
       - name: Install native extension gems
+        if: steps.ruby-cache.outputs.cache-hit != 'true'
         run: |
           export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
 
@@ -157,6 +171,7 @@ jobs:
           gem list
 
       - name: Vendor native libraries
+        if: steps.ruby-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p "$GITHUB_WORKSPACE/legion-ruby/libexec"
           LIBEXEC="$GITHUB_WORKSPACE/legion-ruby/libexec"
@@ -225,6 +240,7 @@ jobs:
           ls -la "$LIBEXEC"
 
       - name: Rewrite dylib load paths
+        if: steps.ruby-cache.outputs.cache-hit != 'true'
         run: |
           LIBEXEC="$GITHUB_WORKSPACE/legion-ruby/libexec"
           BREW_PREFIX="$(brew --prefix)"
@@ -276,6 +292,7 @@ jobs:
           done
 
       - name: Ad-hoc codesign all native binaries
+        if: steps.ruby-cache.outputs.cache-hit != 'true'
         run: |
           find "$GITHUB_WORKSPACE/legion-ruby" -name '*.bundle' | while read -r bundle; do
             codesign --force --sign - "$bundle"
@@ -381,8 +398,8 @@ jobs:
           echo "TAG=$TAG" >> "$GITHUB_ENV"
           echo "FULL_VERSION=${GEM_VERSION}-${PKG_REVISION}" >> "$GITHUB_ENV"
         env:
-          GEM_VERSION: ${{ inputs.legionio_version }}
-          PKG_REVISION: ${{ inputs.package_revision }}
+          GEM_VERSION: ${{ inputs.legionio_version || github.event.client_payload.legionio_version }}
+          PKG_REVISION: ${{ inputs.package_revision || github.event.client_payload.package_revision || '1' }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update formula
