@@ -70,7 +70,7 @@ class Legionio < Formula
       export BUNDLE_GEMFILE=""
       export RUBYOPT=""
       export GEM_SPEC_CACHE="#{gem_dir}/spec_cache"
-      exec "#{libexec}/bin/ruby" "#{gem_dir}/bin/legionio" "$@"
+      exec "#{libexec}/bin/ruby" "#{libexec}/bin/legionio" "$@"
     BASH
     (bin/"legionio").chmod 0755
 
@@ -86,7 +86,7 @@ class Legionio < Formula
       export BUNDLE_GEMFILE=""
       export RUBYOPT=""
       export GEM_SPEC_CACHE="#{gem_dir}/spec_cache"
-      exec "#{libexec}/bin/ruby" "#{gem_dir}/bin/legion" "$@"
+      exec "#{libexec}/bin/ruby" "#{libexec}/bin/legion" "$@"
     BASH
     (bin/"legion").chmod 0755
 
