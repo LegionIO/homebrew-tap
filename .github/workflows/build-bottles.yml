@@ -1,0 +1,142 @@
+name: Build Homebrew Bottles
+
+on:
+  workflow_dispatch:
+    inputs:
+      formula:
+        description: "Formula to bottle (legionio-ruby, legionio, legion-tty, or all)"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - legionio-ruby
+          - legionio
+          - legion-tty
+
+permissions:
+  contents: write
+
+jobs:
+  determine-formulas:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Set formula matrix
+        id: set-matrix
+        env:
+          FORMULA_INPUT: ${{ inputs.formula }}
+        run: |
+          if [ "$FORMULA_INPUT" = "all" ]; then
+            echo 'matrix=["legionio-ruby","legionio","legion-tty"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "matrix=[\"$FORMULA_INPUT\"]" >> "$GITHUB_OUTPUT"
+          fi
+
+  bottle:
+    needs: determine-formulas
+    strategy:
+      fail-fast: false
+      matrix:
+        formula: ${{ fromJSON(needs.determine-formulas.outputs.matrix) }}
+        os:
+          - macos-14      # ARM64 (Apple Silicon)
+          - macos-13      # Intel x86_64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Configure tap
+        run: |
+          TAP_DIR="$(brew --repository)/Library/Taps/legionio/homebrew-tap"
+          mkdir -p "$(dirname "$TAP_DIR")"
+          ln -sfn "$GITHUB_WORKSPACE" "$TAP_DIR"
+
+      - name: Install formula from source
+        env:
+          FORMULA_NAME: ${{ matrix.formula }}
+        run: |
+          brew install --build-bottle "legionio/tap/${FORMULA_NAME}"
+
+      - name: Generate bottle
+        env:
+          FORMULA_NAME: ${{ matrix.formula }}
+        run: |
+          brew bottle --no-rebuild --json "legionio/tap/${FORMULA_NAME}"
+
+          # Rename bottle files (Homebrew generates with double-dash separators)
+          for f in *.tar.gz; do
+            [ -f "$f" ] || continue
+            NEWNAME="$(echo "$f" | sed 's/--/-/g')"
+            if [ "$f" != "$NEWNAME" ]; then
+              mv "$f" "$NEWNAME"
+            fi
+          done
+
+      - name: Upload bottle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bottle-${{ matrix.formula }}-${{ matrix.os }}
+          path: |
+            *.bottle*.tar.gz
+            *.bottle.json
+          retention-days: 30
+
+  collect:
+    needs: bottle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all bottle artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: bottles
+          pattern: bottle-*
+
+      - name: Create release with bottles
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORMULA_INPUT: ${{ inputs.formula }}
+        run: |
+          TAG="bottles-$(date +%Y%m%d-%H%M%S)"
+
+          # Collect all bottle tarballs
+          BOTTLES=""
+          for f in bottles/**/*.tar.gz; do
+            [ -f "$f" ] || continue
+            BOTTLES="$BOTTLES $f"
+          done
+
+          if [ -z "$BOTTLES" ]; then
+            echo "::error::No bottle files found"
+            exit 1
+          fi
+
+          gh release create "$TAG" \
+            --title "Bottles $(date +%Y-%m-%d)" \
+            --notes "Prebuilt Homebrew bottles for formulas: ${FORMULA_INPUT}" \
+            $BOTTLES
+
+      - name: Generate bottle DSL blocks
+        run: |
+          echo "=== Add these bottle blocks to the formulas ==="
+          echo ""
+
+          for json in bottles/**/*.bottle.json; do
+            [ -f "$json" ] || continue
+            echo "--- $(basename "$json") ---"
+            cat "$json"
+            echo ""
+            echo ""
+          done
+
+          echo "=== Manual step: update Formula/*.rb with bottle blocks ==="
+          echo "See: https://docs.brew.sh/Bottles"
