@@ -430,3 +430,14 @@ jobs:
           git push
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  trigger-bottles:
+    needs: update-formula
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger bottle build
+        run: |
+          gh api repos/LegionIO/homebrew-tap/dispatches \
+            -f event_type=build-bottles
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -8,6 +8,8 @@ on:
         required: false
         default: false
         type: boolean
+  repository_dispatch:
+    types: [build-bottles]
 
 permissions:
   contents: write
@@ -66,7 +68,7 @@ jobs:
   publish:
     needs: bottle
     runs-on: ubuntu-latest
-    if: inputs.dry_run != true
+    if: inputs.dry_run != true || github.event_name == 'repository_dispatch'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
