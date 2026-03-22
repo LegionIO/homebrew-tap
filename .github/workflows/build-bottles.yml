@@ -3,46 +3,25 @@ name: Build Homebrew Bottles
 on:
   workflow_dispatch:
     inputs:
-      formula:
-        description: "Formula to bottle (legionio-ruby, legionio, legion-tty, or all)"
-        required: true
-        default: "all"
-        type: choice
-        options:
-          - all
-          - legionio-ruby
-          - legionio
-          - legion-tty
+      dry_run:
+        description: "Dry run (build but don't publish or commit)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
 
 jobs:
-  determine-formulas:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - name: Set formula matrix
-        id: set-matrix
-        env:
-          FORMULA_INPUT: ${{ inputs.formula }}
-        run: |
-          if [ "$FORMULA_INPUT" = "all" ]; then
-            echo 'matrix=["legionio-ruby","legionio","legion-tty"]' >> "$GITHUB_OUTPUT"
-          else
-            echo "matrix=[\"$FORMULA_INPUT\"]" >> "$GITHUB_OUTPUT"
-          fi
-
   bottle:
-    needs: determine-formulas
     strategy:
       fail-fast: false
       matrix:
-        formula: ${{ fromJSON(needs.determine-formulas.outputs.matrix) }}
-        os:
-          - macos-14      # ARM64 (Apple Silicon)
-          - macos-13      # Intel x86_64
+        include:
+          - os: macos-14
+            tag: arm64_sonoma
+          - os: macos-15
+            tag: arm64_sequoia
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -59,18 +38,14 @@ jobs:
           ln -sfn "$GITHUB_WORKSPACE" "$TAP_DIR"
 
       - name: Install formula from source
-        env:
-          FORMULA_NAME: ${{ matrix.formula }}
         run: |
-          brew install --build-bottle "legionio/tap/${FORMULA_NAME}"
+          brew install --build-bottle "legionio/tap/legionio"
 
       - name: Generate bottle
-        env:
-          FORMULA_NAME: ${{ matrix.formula }}
         run: |
-          brew bottle --no-rebuild --json "legionio/tap/${FORMULA_NAME}"
+          brew bottle --no-rebuild --json "legionio/tap/legionio"
 
-          # Rename bottle files (Homebrew generates with double-dash separators)
+          # Homebrew generates double-dash separators in filenames — normalize
           for f in *.tar.gz; do
             [ -f "$f" ] || continue
             NEWNAME="$(echo "$f" | sed 's/--/-/g')"
@@ -82,15 +57,16 @@ jobs:
       - name: Upload bottle artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bottle-${{ matrix.formula }}-${{ matrix.os }}
+          name: bottle-legionio-${{ matrix.tag }}
           path: |
             *.bottle*.tar.gz
             *.bottle.json
           retention-days: 30
 
-  collect:
+  publish:
     needs: bottle
     runs-on: ubuntu-latest
+    if: inputs.dry_run != true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -99,44 +75,96 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: bottles
-          pattern: bottle-*
+          pattern: bottle-legionio-*
 
-      - name: Create release with bottles
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          FORMULA_INPUT: ${{ inputs.formula }}
+      - name: Extract version from formula
+        id: version
         run: |
-          TAG="bottles-$(date +%Y%m%d-%H%M%S)"
+          VERSION=$(grep '  version ' Formula/legionio.rb | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=bottles-legionio-${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Formula version: $VERSION"
 
-          # Collect all bottle tarballs
-          BOTTLES=""
+      - name: Collect bottle tarballs
+        run: |
+          mkdir -p release_assets
           for f in bottles/**/*.tar.gz; do
             [ -f "$f" ] || continue
-            BOTTLES="$BOTTLES $f"
+            cp "$f" release_assets/
           done
+          ls -la release_assets/
 
-          if [ -z "$BOTTLES" ]; then
-            echo "::error::No bottle files found"
-            exit 1
-          fi
-
-          gh release create "$TAG" \
-            --title "Bottles $(date +%Y-%m-%d)" \
-            --notes "Prebuilt Homebrew bottles for formulas: ${FORMULA_INPUT}" \
-            $BOTTLES
-
-      - name: Generate bottle DSL blocks
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          echo "=== Add these bottle blocks to the formulas ==="
-          echo ""
+          # Delete existing release with this tag if present
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          git push origin :"$TAG" 2>/dev/null || true
 
-          for json in bottles/**/*.bottle.json; do
-            [ -f "$json" ] || continue
-            echo "--- $(basename "$json") ---"
-            cat "$json"
-            echo ""
-            echo ""
-          done
+          gh release create "$TAG" release_assets/*.tar.gz \
+            --title "Bottles for legionio $VERSION" \
+            --notes "Prebuilt Homebrew bottles for legionio $VERSION (ARM64 Sonoma + Sequoia)"
 
-          echo "=== Manual step: update Formula/*.rb with bottle blocks ==="
-          echo "See: https://docs.brew.sh/Bottles"
+      - name: Update formula with bottle hashes
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          python3 << 'PYEOF'
+          import json, glob, re, os
+
+          tag = os.environ["TAG"]
+          sha_lines = []
+
+          for path in sorted(glob.glob("bottles/**/*.bottle.json", recursive=True)):
+              with open(path) as f:
+                  data = json.load(f)
+              for formula_name, info in data.items():
+                  for btag, details in sorted(info["bottle"]["tags"].items()):
+                      sha_lines.append(
+                          f'    sha256 cellar: :any, {btag}: "{details["sha256"]}"'
+                      )
+
+          if not sha_lines:
+              print("::error::No bottle hashes found in JSON files")
+              raise SystemExit(1)
+
+          root_url = f"https://github.com/LegionIO/homebrew-tap/releases/download/{tag}"
+          bottle_block = "  bottle do\n"
+          bottle_block += f'    root_url "{root_url}"\n'
+          bottle_block += "\n".join(sha_lines) + "\n"
+          bottle_block += "  end"
+
+          with open("Formula/legionio.rb") as f:
+              content = f.read()
+
+          if "bottle do" in content:
+              content = re.sub(
+                  r"  bottle do\n.*?  end",
+                  bottle_block,
+                  content,
+                  flags=re.DOTALL,
+              )
+          else:
+              content = content.replace(
+                  '  license "Apache-2.0"',
+                  f'  license "Apache-2.0"\n\n{bottle_block}',
+              )
+
+          with open("Formula/legionio.rb", "w") as f:
+              f.write(content)
+
+          print("Updated Formula/legionio.rb with bottle block:")
+          print(bottle_block)
+          PYEOF
+
+      - name: Commit and push bottle hashes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/legionio.rb
+          git diff --cached --quiet && { echo "No changes to commit"; exit 0; }
+          git commit -m "update legionio bottle hashes for ${{ steps.version.outputs.version }}"
+          git push

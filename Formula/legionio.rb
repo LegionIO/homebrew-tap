@@ -6,13 +6,6 @@ class Legionio < Formula
   version "1.4.114-1"
   license "Apache-2.0"
 
-  bottle do
-    root_url "https://github.com/LegionIO/homebrew-tap/releases/download/bottles-latest"
-    # SHA256 hashes populated by build-bottles.yml after first run
-    # sha256 cellar: :any, arm64_sonoma: "PLACEHOLDER"
-    # sha256 cellar: :any, ventura:      "PLACEHOLDER"
-  end
-
   depends_on "openssl@3"
   depends_on "snappy"
   depends_on "redis" => :recommended

@@ -6,7 +6,7 @@ class LegionDev < Formula
   version "3.4.8-1"
   license "Apache-2.0"
 
-  depends_on "legionio/tap/legion-tty"
+  depends_on "legionio/tap/legionio"
   depends_on "ollama"
   depends_on "postgresql@17"
   depends_on "rabbitmq"
