@@ -6,6 +6,12 @@ class Legionio < Formula
   version "1.4.123-1"
   license "Apache-2.0"
 
+  bottle do
+    root_url "https://github.com/LegionIO/homebrew-tap/releases/download/bottles-legionio-1.4.123-1"
+    sha256 cellar: :any, arm64_sequoia: "da22875d2af56d85429196e9f63c48f6c99d854f2a310fc956bd57aa934994dc"
+    sha256 cellar: :any, arm64_sonoma: "855805c7fd299c17e0f9c30e4f3f57afb57f7d9264b5c0b3952b1ab905238cd0"
+  end
+
   depends_on "openssl@3"
   depends_on "snappy"
   depends_on "redis" => :recommended
