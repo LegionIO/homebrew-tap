@@ -1,0 +1,170 @@
+name: Build Homebrew Bottles
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (build but don't publish or commit)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  bottle:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            tag: arm64_sonoma
+          - os: macos-15
+            tag: arm64_sequoia
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Configure tap
+        run: |
+          TAP_DIR="$(brew --repository)/Library/Taps/legionio/homebrew-tap"
+          mkdir -p "$(dirname "$TAP_DIR")"
+          ln -sfn "$GITHUB_WORKSPACE" "$TAP_DIR"
+
+      - name: Install formula from source
+        run: |
+          brew install --build-bottle "legionio/tap/legionio"
+
+      - name: Generate bottle
+        run: |
+          brew bottle --no-rebuild --json "legionio/tap/legionio"
+
+          # Homebrew generates double-dash separators in filenames — normalize
+          for f in *.tar.gz; do
+            [ -f "$f" ] || continue
+            NEWNAME="$(echo "$f" | sed 's/--/-/g')"
+            if [ "$f" != "$NEWNAME" ]; then
+              mv "$f" "$NEWNAME"
+            fi
+          done
+
+      - name: Upload bottle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bottle-legionio-${{ matrix.tag }}
+          path: |
+            *.bottle*.tar.gz
+            *.bottle.json
+          retention-days: 30
+
+  publish:
+    needs: bottle
+    runs-on: ubuntu-latest
+    if: inputs.dry_run != true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all bottle artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: bottles
+          pattern: bottle-legionio-*
+
+      - name: Extract version from formula
+        id: version
+        run: |
+          VERSION=$(grep '  version ' Formula/legionio.rb | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=bottles-legionio-${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Formula version: $VERSION"
+
+      - name: Collect bottle tarballs
+        run: |
+          mkdir -p release_assets
+          for f in bottles/**/*.tar.gz; do
+            [ -f "$f" ] || continue
+            cp "$f" release_assets/
+          done
+          ls -la release_assets/
+
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Delete existing release with this tag if present
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          git push origin :"$TAG" 2>/dev/null || true
+
+          gh release create "$TAG" release_assets/*.tar.gz \
+            --title "Bottles for legionio $VERSION" \
+            --notes "Prebuilt Homebrew bottles for legionio $VERSION (ARM64 Sonoma + Sequoia)"
+
+      - name: Update formula with bottle hashes
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          python3 << 'PYEOF'
+          import json, glob, re, os
+
+          tag = os.environ["TAG"]
+          sha_lines = []
+
+          for path in sorted(glob.glob("bottles/**/*.bottle.json", recursive=True)):
+              with open(path) as f:
+                  data = json.load(f)
+              for formula_name, info in data.items():
+                  for btag, details in sorted(info["bottle"]["tags"].items()):
+                      sha_lines.append(
+                          f'    sha256 cellar: :any, {btag}: "{details["sha256"]}"'
+                      )
+
+          if not sha_lines:
+              print("::error::No bottle hashes found in JSON files")
+              raise SystemExit(1)
+
+          root_url = f"https://github.com/LegionIO/homebrew-tap/releases/download/{tag}"
+          bottle_block = "  bottle do\n"
+          bottle_block += f'    root_url "{root_url}"\n'
+          bottle_block += "\n".join(sha_lines) + "\n"
+          bottle_block += "  end"
+
+          with open("Formula/legionio.rb") as f:
+              content = f.read()
+
+          if "bottle do" in content:
+              content = re.sub(
+                  r"  bottle do\n.*?  end",
+                  bottle_block,
+                  content,
+                  flags=re.DOTALL,
+              )
+          else:
+              content = content.replace(
+                  '  license "Apache-2.0"',
+                  f'  license "Apache-2.0"\n\n{bottle_block}',
+              )
+
+          with open("Formula/legionio.rb", "w") as f:
+              f.write(content)
+
+          print("Updated Formula/legionio.rb with bottle block:")
+          print(bottle_block)
+          PYEOF
+
+      - name: Commit and push bottle hashes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/legionio.rb
+          git diff --cached --quiet && { echo "No changes to commit"; exit 0; }
+          git commit -m "update legionio bottle hashes for ${{ steps.version.outputs.version }}"
+          git push
