@@ -136,6 +136,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/legion-tty.rb
           git commit -m "bump legion-tty to ${FULL_VERSION}" || echo "No changes to commit"
+          git pull --rebase origin main
           git push
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

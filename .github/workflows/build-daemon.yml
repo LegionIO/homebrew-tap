@@ -162,6 +162,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/legionio.rb
           git commit -m "bump legionio to ${FULL_VERSION}" || echo "No changes to commit"
+          git pull --rebase origin main
           git push
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

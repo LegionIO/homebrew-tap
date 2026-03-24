@@ -164,13 +164,13 @@ jobs:
           gem install legionio -v ">= ${GEM_VERSION}" --no-document
           gem install legion-data legion-transport legion-cache \
             legion-crypt legion-settings legion-llm legion-gaia legion-mcp \
-            legion-rbac legion-json legion-logging \
+            legion-rbac legion-json legion-logging legion-tty \
             --no-document
           gem install lex-synapse lex-node lex-llm-gateway lex-metering lex-detect \
             lex-http lex-tasker lex-conditioner lex-transformer lex-scheduler \
             lex-lex lex-health lex-exec lex-codegen lex-telemetry lex-audit \
+            lex-privatecore lex-tick \
             --no-document
-          gem install legion-tty --no-document
 
           echo "=== Cleaning up old gem versions ==="
           gem cleanup
@@ -427,6 +427,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/legionio.rb
           git commit -m "bump legionio to ${FULL_VERSION}" || echo "No changes to commit"
+          git pull --rebase origin main
           git push
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

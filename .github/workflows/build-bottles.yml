@@ -169,4 +169,5 @@ jobs:
           git add Formula/legionio.rb
           git diff --cached --quiet && { echo "No changes to commit"; exit 0; }
           git commit -m "update legionio bottle hashes for ${{ steps.version.outputs.version }}"
+          git pull --rebase origin main
           git push
