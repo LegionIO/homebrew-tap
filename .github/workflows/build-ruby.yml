@@ -347,6 +347,27 @@ jobs:
           fi
           echo "No .bundle files reference Homebrew prefix — OK"
 
+      - name: Strip build-time artifacts
+        run: |
+          PREFIX="$GITHUB_WORKSPACE/legion-ruby"
+          rm -f "$PREFIX"/lib/libruby*-static.a
+          rm -rf "$PREFIX"/include
+          rm -rf "$PREFIX"/lib/ruby/gems/*/cache
+          find "$PREFIX" -name '*.o' -delete
+          find "$PREFIX"/lib/ruby/gems/*/gems -maxdepth 2 -type d \
+            \( -name spec -o -name test \) -exec rm -rf {} + 2>/dev/null || true
+          for gem in rbs typeprof debug; do
+            rm -rf "$PREFIX"/lib/ruby/gems/*/gems/${gem}-*
+            rm -f "$PREFIX"/lib/ruby/gems/*/specifications/${gem}-*.gemspec
+          done
+          echo "=== Post-strip size ==="
+          du -sh "$PREFIX"
+          find "$PREFIX" -type f | wc -l
+          test ! -f "$PREFIX/lib/libruby.3.4-static.a"
+          test ! -d "$PREFIX/include"
+          test ! -d "$PREFIX/lib/ruby/gems/3.4.0/cache"
+          ! find "$PREFIX" -name '*.o' | grep -q . || exit 1
+
       - name: Package artifact
         run: |
           TARBALL="${{ steps.version.outputs.tarball }}"

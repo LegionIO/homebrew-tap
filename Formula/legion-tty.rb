@@ -44,7 +44,7 @@ class LegionTty < Formula
   end
 
   def post_install
-    install_tls_certificates
+    install_tls_certificates unless tls_certs_fresh?
   end
 
   def caveats
@@ -73,6 +73,11 @@ class LegionTty < Formula
     ruby_ver = Dir[ruby_formula.opt_libexec/"lib/ruby/[0-9]*"].reject { |p| p.include?("gems") }.first
     ruby_arch = Dir["#{ruby_ver}/arm64-*"].first if ruby_ver
     [ruby_ver, ruby_arch].compact.join(":")
+  end
+
+  def tls_certs_fresh?
+    marker = HOMEBREW_PREFIX/"etc/openssl@3/certs/rubygems.org-0.pem"
+    marker.exist? && (Time.now - marker.mtime) < 30 * 24 * 3600
   end
 
   def install_tls_certificates
