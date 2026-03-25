@@ -1,0 +1,7 @@
+# Auto-generated from team-config.yml
+# Team: infra
+#
+# To apply: scripts/apply-codeowners.sh homebrew-tap
+
+* @LegionIO/maintainers
+* @LegionIO/infra
