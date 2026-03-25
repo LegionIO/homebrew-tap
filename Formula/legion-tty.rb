@@ -23,13 +23,18 @@ class LegionTty < Formula
     # The `legion` binstub is provided by the legionio gem (in the daemon formula).
     # Use it from the daemon's GEM_HOME, with our extended GEM_PATH so TTY gems load.
     daemon_bin = daemon_formula.opt_libexec/"gems/bin/legion"
+    lib_path_export = if OS.mac?
+                         "export DYLD_FALLBACK_LIBRARY_PATH=\"#{ruby_formula.opt_libexec}/libexec\""
+                       else
+                         "export LD_LIBRARY_PATH=\"#{ruby_formula.opt_libexec}/libexec${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\""
+                       end
     (bin/"legion").write <<~BASH
       #!/bin/bash
       export PATH="#{ruby_bin}:$PATH"
       export GEM_PATH="#{gem_home}:#{daemon_formula.opt_libexec}/gems:#{ruby_gem_dir}"
       export GEM_HOME="#{gem_home}"
       export RUBYLIB="#{ruby_lib_path(ruby_formula)}"
-      export DYLD_FALLBACK_LIBRARY_PATH="#{ruby_formula.opt_libexec}/libexec"
+      #{lib_path_export}
       # Isolate from system/rbenv gems
       export RUBYGEMS_GEMDEPS=""
       export BUNDLE_GEMFILE=""
@@ -71,7 +76,9 @@ class LegionTty < Formula
 
   def ruby_lib_path(ruby_formula)
     ruby_ver = Dir[ruby_formula.opt_libexec/"lib/ruby/[0-9]*"].reject { |p| p.include?("gems") }.first
-    ruby_arch = Dir["#{ruby_ver}/arm64-*"].first if ruby_ver
+    return "" unless ruby_ver
+
+    ruby_arch = (Dir["#{ruby_ver}/arm64-*"] + Dir["#{ruby_ver}/x86_64-*"] + Dir["#{ruby_ver}/aarch64-*"]).first
     [ruby_ver, ruby_arch].compact.join(":")
   end
 

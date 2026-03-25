@@ -63,6 +63,11 @@ class Legionio < Formula
     RUBY
 
     ruby_lib = ruby_lib_path
+    lib_path_export = if OS.mac?
+                         "export DYLD_FALLBACK_LIBRARY_PATH=\"#{libexec}/libexec\""
+                       else
+                         "export LD_LIBRARY_PATH=\"#{libexec}/libexec${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\""
+                       end
 
     # legionio — daemon CLI
     (bin/"legionio").write <<~BASH
@@ -71,7 +76,7 @@ class Legionio < Formula
       export GEM_PATH="#{gem_dir}"
       export GEM_HOME="#{gem_dir}"
       export RUBYLIB="#{ruby_lib}"
-      export DYLD_FALLBACK_LIBRARY_PATH="#{libexec}/libexec"
+      #{lib_path_export}
       export RUBYGEMS_GEMDEPS=""
       export BUNDLE_GEMFILE=""
       export RUBYOPT=""
@@ -87,7 +92,7 @@ class Legionio < Formula
       export GEM_PATH="#{gem_dir}"
       export GEM_HOME="#{gem_dir}"
       export RUBYLIB="#{ruby_lib}"
-      export DYLD_FALLBACK_LIBRARY_PATH="#{libexec}/libexec"
+      #{lib_path_export}
       export RUBYGEMS_GEMDEPS=""
       export BUNDLE_GEMFILE=""
       export RUBYOPT=""
@@ -178,7 +183,10 @@ class Legionio < Formula
 
   def ruby_lib_path
     ruby_ver = Dir[libexec/"lib/ruby/[0-9]*"].reject { |p| p.include?("gems") }.first
-    ruby_arch = Dir["#{ruby_ver}/arm64-*"].first if ruby_ver
+    return "" unless ruby_ver
+
+    # Match platform-specific arch dir (arm64-darwin*, x86_64-linux*, aarch64-linux*)
+    ruby_arch = (Dir["#{ruby_ver}/arm64-*"] + Dir["#{ruby_ver}/x86_64-*"] + Dir["#{ruby_ver}/aarch64-*"]).first
     [ruby_ver, ruby_arch].compact.join(":")
   end
 

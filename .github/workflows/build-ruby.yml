@@ -18,11 +18,15 @@ permissions:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: macos-14
             arch: arm64
             suffix: darwin-arm64
+          - os: ubuntu-22.04
+            arch: x86_64
+            suffix: linux-x86_64
 
     runs-on: ${{ matrix.os }}
 
@@ -51,7 +55,7 @@ jobs:
           restore-keys: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v5-
 
       - name: Cache Homebrew packages
-        if: steps.ruby-cache.outputs.cache-hit != 'true'
+        if: steps.ruby-cache.outputs.cache-hit != 'true' && runner.os == 'macOS'
         uses: actions/cache@v4
         with:
           path: |
@@ -60,10 +64,21 @@ jobs:
           key: brew-${{ matrix.suffix }}-${{ hashFiles('.github/workflows/build-ruby.yml') }}
           restore-keys: brew-${{ matrix.suffix }}-
 
-      - name: Install build dependencies
-        if: steps.ruby-cache.outputs.cache-hit != 'true'
+      - name: Install build dependencies (macOS)
+        if: steps.ruby-cache.outputs.cache-hit != 'true' && runner.os == 'macOS'
         run: |
           brew install openssl@3 libyaml rust postgresql@17 mysql-client sqlite snappy
+
+      - name: Install build dependencies (Linux)
+        if: steps.ruby-cache.outputs.cache-hit != 'true' && runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential autoconf bison rustc \
+            libssl-dev libyaml-dev libreadline-dev zlib1g-dev \
+            libffi-dev libgdbm-dev libncurses-dev \
+            libpq-dev libmysqlclient-dev libsqlite3-dev libsnappy-dev \
+            patchelf
 
       - name: Download Ruby source
         if: steps.ruby-cache.outputs.cache-hit != 'true'
@@ -77,14 +92,25 @@ jobs:
         if: steps.ruby-cache.outputs.cache-hit != 'true'
         run: |
           cd "ruby-${RUBY_VERSION}"
+
+          if [ "$(uname)" = "Darwin" ]; then
+            OPENSSL_DIR="$(brew --prefix openssl@3)"
+            LIBYAML_DIR="$(brew --prefix libyaml)"
+            NCPU="$(sysctl -n hw.ncpu)"
+          else
+            OPENSSL_DIR="/usr"
+            LIBYAML_DIR="/usr"
+            NCPU="$(nproc)"
+          fi
+
           ./configure \
             --enable-yjit \
             --enable-load-relative \
             --disable-install-doc \
             --prefix="$GITHUB_WORKSPACE/legion-ruby" \
-            --with-openssl-dir="$(brew --prefix openssl@3)" \
-            --with-libyaml-dir="$(brew --prefix libyaml)"
-          make -j$(sysctl -n hw.ncpu)
+            --with-openssl-dir="$OPENSSL_DIR" \
+            --with-libyaml-dir="$LIBYAML_DIR"
+          make -j"$NCPU"
           make install
 
       - name: Install native extension gems
@@ -95,19 +121,37 @@ jobs:
           gem install bundler --no-document --force
           bundle config set --global ssl_verify_mode none
 
-          gem install sqlite3 --no-document -- \
-            --with-sqlite3-dir="$(brew --prefix sqlite)"
+          if [ "$(uname)" = "Darwin" ]; then
+            gem install sqlite3 --no-document -- \
+              --with-sqlite3-dir="$(brew --prefix sqlite)"
+          else
+            gem install sqlite3 --no-document
+          fi
+
           gem install oj --no-document
           gem install puma --no-document
           gem install nio4r --no-document
           gem install racc --no-document --force
-          gem install snappy --no-document -- \
-            --with-snappy-dir="$(brew --prefix snappy)"
+
+          if [ "$(uname)" = "Darwin" ]; then
+            gem install snappy --no-document -- \
+              --with-snappy-dir="$(brew --prefix snappy)"
+          else
+            gem install snappy --no-document
+          fi
+
           gem install concurrent-ruby concurrent-ruby-ext --no-document
-          gem install pg --no-document -- \
-            --with-pg-config="$(brew --prefix postgresql@17)/bin/pg_config"
-          gem install mysql2 --no-document -- \
-            --with-mysql-config="$(brew --prefix mysql-client)/bin/mysql_config"
+
+          if [ "$(uname)" = "Darwin" ]; then
+            gem install pg --no-document -- \
+              --with-pg-config="$(brew --prefix postgresql@17)/bin/pg_config"
+            gem install mysql2 --no-document -- \
+              --with-mysql-config="$(brew --prefix mysql-client)/bin/mysql_config"
+          else
+            gem install pg --no-document
+            gem install mysql2 --no-document
+          fi
+
           gem install bootsnap --no-document
           gem install msgpack --no-document
           gem install ed25519 --no-document
@@ -140,8 +184,8 @@ jobs:
           echo "=== Installed gems ==="
           gem list
 
-      - name: Vendor native libraries
-        if: steps.ruby-cache.outputs.cache-hit != 'true'
+      - name: Vendor native libraries (macOS)
+        if: steps.ruby-cache.outputs.cache-hit != 'true' && runner.os == 'macOS'
         run: |
           mkdir -p "$GITHUB_WORKSPACE/legion-ruby/libexec"
           LIBEXEC="$GITHUB_WORKSPACE/legion-ruby/libexec"
@@ -231,8 +275,57 @@ jobs:
           echo "=== Vendored files ==="
           ls -la "$LIBEXEC"
 
-      - name: Rewrite dylib load paths
-        if: steps.ruby-cache.outputs.cache-hit != 'true'
+      - name: Vendor native libraries (Linux)
+        if: steps.ruby-cache.outputs.cache-hit != 'true' && runner.os == 'Linux'
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/legion-ruby/libexec"
+          LIBEXEC="$GITHUB_WORKSPACE/legion-ruby/libexec"
+
+          copy_with_deps() {
+            local src="$1"
+            if [ ! -f "$src" ]; then
+              echo "WARNING: skipping missing lib: $src"
+              return
+            fi
+            local name
+            name="$(basename "$src")"
+            if [ -f "$LIBEXEC/$name" ]; then
+              return
+            fi
+            echo "Vendoring: $name"
+            cp -L "$src" "$LIBEXEC/$name"
+            # Vendor non-system transitive dependencies
+            ldd "$src" 2>/dev/null | grep "=> /" | awk '{print $3}' | while read -r dep; do
+              dep_basename="$(basename "$dep")"
+              case "$dep_basename" in
+                libc.so*|libm.so*|libpthread.so*|libdl.so*|librt.so*|ld-linux*|linux-vdso*) continue ;;
+              esac
+              if [ ! -f "$LIBEXEC/$dep_basename" ] && [ -f "$dep" ]; then
+                copy_with_deps "$dep"
+              fi
+            done
+          }
+
+          for lib in libpq libmysqlclient libssl libcrypto libyaml libsnappy; do
+            SO_FILE="$(ldconfig -p 2>/dev/null | grep "${lib}\\.so" | head -1 | awk '{print $NF}')"
+            if [ -n "$SO_FILE" ] && [ -f "$SO_FILE" ]; then
+              copy_with_deps "$SO_FILE"
+            else
+              echo "Searching /usr/lib for ${lib}"
+              SO_FILE="$(find /usr/lib -name "${lib}.so*" -type f 2>/dev/null | head -1)"
+              if [ -n "$SO_FILE" ]; then
+                copy_with_deps "$SO_FILE"
+              else
+                echo "WARNING: ${lib} not found"
+              fi
+            fi
+          done
+
+          echo "=== Vendored files ==="
+          ls -la "$LIBEXEC"
+
+      - name: Rewrite dylib load paths (macOS)
+        if: steps.ruby-cache.outputs.cache-hit != 'true' && runner.os == 'macOS'
         run: |
           LIBEXEC="$GITHUB_WORKSPACE/legion-ruby/libexec"
           BREW_PREFIX="$(brew --prefix)"
@@ -283,8 +376,37 @@ jobs:
             install_name_tool -add_rpath "$LIBEXEC" "$bundle" 2>/dev/null || true
           done
 
+      - name: Rewrite shared library paths (Linux)
+        if: steps.ruby-cache.outputs.cache-hit != 'true' && runner.os == 'Linux'
+        run: |
+          LIBEXEC="$GITHUB_WORKSPACE/legion-ruby/libexec"
+          PREFIX="$GITHUB_WORKSPACE/legion-ruby"
+
+          # Set RPATH on vendored .so files so they find each other
+          for so in "$LIBEXEC"/*.so*; do
+            [ -f "$so" ] || continue
+            patchelf --set-rpath '$ORIGIN' "$so" 2>/dev/null || true
+          done
+
+          # Set RPATH on ruby binary
+          RUBY_BIN="$PREFIX/bin/ruby"
+          if [ -f "$RUBY_BIN" ]; then
+            patchelf --set-rpath '$ORIGIN/../libexec:$ORIGIN/../lib' "$RUBY_BIN" 2>/dev/null || true
+          fi
+
+          # Set RPATH on libruby
+          LIBRUBY="$(find "$PREFIX/lib" -name 'libruby*.so*' -type f | head -1)"
+          if [ -n "$LIBRUBY" ]; then
+            patchelf --set-rpath '$ORIGIN:$ORIGIN/../libexec' "$LIBRUBY" 2>/dev/null || true
+          fi
+
+          # Set RPATH on gem native extension .so files
+          find "$PREFIX" -name '*.so' -path '*/gems/*' | while read -r ext; do
+            patchelf --set-rpath "\$ORIGIN:$LIBEXEC" "$ext" 2>/dev/null || true
+          done
+
       - name: Ad-hoc codesign all native binaries
-        if: steps.ruby-cache.outputs.cache-hit != 'true'
+        if: steps.ruby-cache.outputs.cache-hit != 'true' && runner.os == 'macOS'
         run: |
           echo "=== Signing .bundle files ==="
           find "$GITHUB_WORKSPACE/legion-ruby" -name '*.bundle' | while read -r bundle; do
@@ -315,6 +437,10 @@ jobs:
         run: |
           export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
 
+          if [ "$(uname)" = "Linux" ]; then
+            export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/legion-ruby/libexec${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          fi
+
           echo "=== Ruby info ==="
           ruby -v
 
@@ -337,15 +463,25 @@ jobs:
           ruby -e "require 'ed25519'; puts 'ed25519 OK'"
           ruby -e "require 'rbtree'; puts 'rbtree OK'"
 
-          BREW_PREFIX="$(brew --prefix)"
-          BAD_BUNDLES="$(find "$GITHUB_WORKSPACE/legion-ruby" -name '*.bundle' \
-            -exec sh -c 'otool -L "$1" | grep -q "'"$BREW_PREFIX"'" && echo "$1"' _ {} \;)"
-          if [ -n "$BAD_BUNDLES" ]; then
-            echo "ERROR: .bundle files still reference Homebrew prefix:"
-            echo "$BAD_BUNDLES"
-            exit 1
+          if [ "$(uname)" = "Darwin" ]; then
+            BREW_PREFIX="$(brew --prefix)"
+            BAD_BUNDLES="$(find "$GITHUB_WORKSPACE/legion-ruby" -name '*.bundle' \
+              -exec sh -c 'otool -L "$1" | grep -q "'"$BREW_PREFIX"'" && echo "$1"' _ {} \;)"
+            if [ -n "$BAD_BUNDLES" ]; then
+              echo "ERROR: .bundle files still reference Homebrew prefix:"
+              echo "$BAD_BUNDLES"
+              exit 1
+            fi
+            echo "No .bundle files reference Homebrew prefix — OK"
+          else
+            BAD_SO="$(find "$GITHUB_WORKSPACE/legion-ruby" -name '*.so' -path '*/gems/*' \
+              -exec sh -c 'ldd "$1" 2>/dev/null | grep "not found" && echo "  in: $1"' _ {} \;)"
+            if [ -n "$BAD_SO" ]; then
+              echo "WARNING: some .so files have unresolved dependencies:"
+              echo "$BAD_SO"
+            fi
+            echo "Shared library check complete"
           fi
-          echo "No .bundle files reference Homebrew prefix — OK"
 
       - name: Strip build-time artifacts
         run: |
@@ -386,10 +522,15 @@ jobs:
           TARBALL="${{ steps.version.outputs.tarball }}"
           FULL_VERSION="${{ steps.version.outputs.full_version }}"
 
-          gh release create "$TAG" \
-            --title "Legion ${FULL_VERSION} (${SUFFIX})" \
-            --notes "Pre-compiled Ruby ${RUBY_VERSION} (package revision ${PKG_REVISION}) for Legion on ${SUFFIX}. Includes YJIT and native extension gems only (pg, mysql2, sqlite3, oj, puma, bootsnap). Legion/LEX gems are installed separately via the legionio and legion-tty formulas." \
-            "$TARBALL"
+          # Both matrix jobs share the same tag — first to finish creates the release,
+          # second uploads its tarball to the existing release
+          if ! gh release create "$TAG" \
+            --title "Legion Ruby ${FULL_VERSION}" \
+            --notes "Pre-compiled Ruby ${RUBY_VERSION} (package revision ${PKG_REVISION}) for Legion. Includes YJIT and native extension gems only (pg, mysql2, sqlite3, oj, puma, bootsnap). Legion/LEX gems are installed separately via the legionio and legion-tty formulas." \
+            "$TARBALL" 2>/dev/null; then
+            echo "Release $TAG already exists, uploading tarball"
+            gh release upload "$TAG" "$TARBALL" --clobber
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
