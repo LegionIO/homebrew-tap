@@ -172,11 +172,24 @@ jobs:
             lex-privatecore lex-tick \
             --no-document
 
+          echo "=== Installed gems ==="
+          gem list
+
+      - name: Update Legion and LEX gems to latest
+        run: |
+          export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
+
+          echo "=== Updating all legion-* gems ==="
+          gem list --no-versions | grep '^legion-' | xargs gem update --no-document || true
+
+          echo "=== Updating all lex-* gems ==="
+          gem list --no-versions | grep '^lex-' | xargs gem update --no-document || true
+
           echo "=== Cleaning up old gem versions ==="
           gem cleanup
 
-          echo "=== Installed gems ==="
-          gem list
+          echo "=== Final gem list ==="
+          gem list | grep -E '^(legion|lex-|legionio)'
 
       - name: Vendor native libraries
         if: steps.ruby-cache.outputs.cache-hit != 'true'

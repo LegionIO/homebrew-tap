@@ -151,8 +151,8 @@ The formulas implement 3-layer isolation to prevent system/rbenv gems from leaki
 
 - **Bundled Ruby**: 3.4.8 (compiled with YJIT, self-contained with vendored native libs)
 - **Current package version**: `3.4.8-15` (Ruby 3.4.8, package revision 15)
-- **legionio gem version**: 1.4.91-1 (separate gems tarball)
-- **legion-tty gem version**: 0.4.29-4 (separate gems tarball)
+- **legionio gem version**: 1.4.114 (separate gems tarball)
+- **legion-tty gem version**: 0.4.29 (separate gems tarball)
 
 ## CI (`test.yml`)
 
