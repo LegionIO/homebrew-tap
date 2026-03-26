@@ -66,7 +66,7 @@ class Legionio < Formula
     ruby_lib = ruby_lib_path
     krb5_lib = Formula["krb5"].opt_lib
     lib_path_export = if OS.mac?
-                         "export DYLD_FALLBACK_LIBRARY_PATH=\"#{libexec}/libexec:#{krb5_lib}\""
+                         "export DYLD_FALLBACK_LIBRARY_PATH=\"#{libexec}/libexec:#{krb5_lib}${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}\""
                        else
                          "export LD_LIBRARY_PATH=\"#{libexec}/libexec${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\""
                        end

@@ -386,7 +386,29 @@ jobs:
           ruby -e "require 'msgpack'; puts 'msgpack OK'"
           ruby -e "require 'ed25519'; puts 'ed25519 OK'"
           ruby -e "require 'rbtree'; puts 'rbtree OK'"
-          ruby -e "require 'ffi'; require 'gssapi'; puts 'gssapi OK'"
+          ruby <<'RUBY'
+            require 'ffi'
+            require 'gssapi'
+
+            libs = []
+            ObjectSpace.each_object(FFI::DynamicLibrary) do |dl|
+              name = (dl.respond_to?(:name) ? dl.name : nil) rescue nil
+              next unless name
+              libs << name if name.include?('libgssapi_krb5')
+            end
+
+            if libs.empty?
+              warn "ERROR: gssapi loaded but no libgssapi_krb5* library was found via FFI"
+              exit 1
+            end
+
+            if libs.include?('/usr/lib/libgssapi_krb5.dylib')
+              warn "ERROR: gssapi is using system Heimdal (/usr/lib/libgssapi_krb5.dylib)"
+              exit 1
+            end
+
+            puts "gssapi OK (libs: #{libs.join(', ')})"
+          RUBY
 
           echo "=== Legion gems ==="
           INSTALLED="$(ruby -e "require 'legion/version'; puts Legion::VERSION")"
