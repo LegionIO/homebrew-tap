@@ -150,20 +150,19 @@ The formulas implement 3-layer isolation to prevent system/rbenv gems from leaki
 ### Current Version
 
 - **Bundled Ruby**: 3.4.8 (compiled with YJIT, self-contained with vendored native libs)
-- **Current package version**: `3.4.8-15` (Ruby 3.4.8, package revision 15)
-- **legionio gem version**: 1.4.114 (separate gems tarball)
-- **legion-tty gem version**: 0.4.29 (separate gems tarball)
+- **legionio gem version**: 1.5.20 (separate gems tarball)
+- **legion-tty gem version**: 0.4.34 (separate gems tarball)
 
 ## CI (`test.yml`)
 
 Runs `brew-test-bot` on `macos-latest` on every push and PR:
 1. Set up Homebrew
 2. Copy this repo into the Homebrew taps directory as `legionio/homebrew-tap`
-3. `brew install legionio/tap/legion`
-4. `brew test legionio/tap/legion` (runs `legion version`)
-5. `brew audit --strict legionio/tap/legion || true` (audit failures are non-blocking)
+3. `brew install legionio/tap/legion-tty` (installs full dependency chain: legionio-ruby -> legionio -> legion-tty)
+4. `brew test legionio/tap/legion-tty` (runs `legion version`)
+5. `brew audit --strict legionio/tap/legion-tty || true` (audit failures are non-blocking)
 
-Note: CI only tests `legion`, not `legion-dev`. The `legion-dev` meta-formula is not included in the automated test run because it would pull in Ollama, RabbitMQ, Vault, and PostgreSQL, which significantly increases CI time.
+Note: CI only tests `legion-tty`, not `legion-dev`. The `legion-dev` meta-formula is not included in the automated test run because it would pull in Ollama, RabbitMQ, Vault, and PostgreSQL, which significantly increases CI time.
 
 ## Homebrew Tap Conventions
 

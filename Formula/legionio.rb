@@ -106,6 +106,7 @@ class Legionio < Formula
     # Dev helpers — expose bundled ruby tools
     (bin/"legion-ruby").write <<~BASH
       #!/bin/bash
+      #{lib_path_export}
       exec "#{ruby_bin}" "$@"
     BASH
     (bin/"legion-ruby").chmod 0755
@@ -113,6 +114,7 @@ class Legionio < Formula
     %w[gem bundle irb].each do |tool|
       (bin/"legion-#{tool}").write <<~BASH
         #!/bin/bash
+        #{lib_path_export}
         exec "#{ruby_bin}" "#{libexec}/bin/#{tool}" "$@"
       BASH
       (bin/"legion-#{tool}").chmod 0755
