@@ -67,7 +67,7 @@ jobs:
       - name: Install build dependencies (macOS)
         if: steps.ruby-cache.outputs.cache-hit != 'true' && runner.os == 'macOS'
         run: |
-          brew install openssl@3 libyaml rust postgresql@17 mysql-client sqlite snappy
+          brew install openssl@3 libyaml rust postgresql@17 mysql-client sqlite snappy krb5
 
       - name: Install build dependencies (Linux)
         if: steps.ruby-cache.outputs.cache-hit != 'true' && runner.os == 'Linux'
@@ -78,7 +78,7 @@ jobs:
             libssl-dev libyaml-dev libreadline-dev zlib1g-dev \
             libffi-dev libgdbm-dev libncurses-dev \
             libpq-dev libmysqlclient-dev libsqlite3-dev libsnappy-dev \
-            patchelf
+            libkrb5-dev patchelf
 
       - name: Download Ruby source
         if: steps.ruby-cache.outputs.cache-hit != 'true'
@@ -156,6 +156,8 @@ jobs:
           gem install msgpack --no-document
           gem install ed25519 --no-document
           gem install rbtree --no-document
+          gem install ffi --no-document
+          gem install gssapi --no-document
 
           echo "=== Cleaning up old gem versions ==="
           gem cleanup
@@ -180,6 +182,19 @@ jobs:
             done
           done || true
           echo "=== Strip complete ==="
+
+          echo "=== Patching gssapi gem to prefer Homebrew MIT Kerberos on macOS ==="
+          if [ "$(uname)" = "Darwin" ]; then
+            KRB5_LIB="$(brew --prefix krb5)/lib/libgssapi_krb5.dylib"
+            LOADER="$(find "$GITHUB_WORKSPACE/legion-ruby" -path '*/gssapi-*/lib/gssapi/lib_gssapi_loader.rb' | head -1)"
+            if [ -n "$LOADER" ] && [ -f "$KRB5_LIB" ]; then
+              sed -i '' "s|gssapi_lib = '/usr/lib/libgssapi_krb5.dylib'|brew_lib = \`brew --prefix krb5 2>/dev/null\`.chomp; gssapi_lib = File.exist?(\"#{brew_lib}/lib/libgssapi_krb5.dylib\") ? \"#{brew_lib}/lib/libgssapi_krb5.dylib\" : '/usr/lib/libgssapi_krb5.dylib'|" "$LOADER"
+              echo "  Patched: $LOADER"
+              grep -n 'brew_lib\|gssapi_lib' "$LOADER" || true
+            else
+              echo "  WARNING: gssapi loader not found or krb5 lib missing"
+            fi
+          fi
 
           echo "=== Installed gems ==="
           gem list
@@ -237,6 +252,7 @@ jobs:
           SSL_LIB="$(brew --prefix openssl@3)/lib"
           YAML_LIB="$(brew --prefix libyaml)/lib"
           SNAPPY_LIB="$(brew --prefix snappy)/lib"
+          KRB5_LIB="$(brew --prefix krb5)/lib"
 
           echo "=== Discovering dylibs ==="
           echo "PG_LIB: $PG_LIB"
@@ -249,6 +265,8 @@ jobs:
           ls -la "$YAML_LIB"/libyaml* 2>/dev/null || echo "No libyaml files found"
           echo "SNAPPY_LIB: $SNAPPY_LIB"
           ls -la "$SNAPPY_LIB"/libsnappy* 2>/dev/null || echo "No libsnappy files found"
+          echo "KRB5_LIB: $KRB5_LIB"
+          ls -la "$KRB5_LIB"/libgssapi_krb5* "$KRB5_LIB"/libkrb5* "$KRB5_LIB"/libk5crypto* "$KRB5_LIB"/libcom_err* 2>/dev/null || echo "No krb5 files found"
 
           PQ_DYLIB="$(find_dylib "$PG_LIB" "libpq.*.dylib")"
           MYSQL_DYLIB="$(find_dylib "$MYSQL_LIB" "libmysqlclient.*.dylib")"
@@ -256,6 +274,11 @@ jobs:
           CRYPTO_DYLIB="$(find_dylib "$SSL_LIB" "libcrypto.*.dylib")"
           YAML_DYLIB="$(find_dylib "$YAML_LIB" "libyaml*.dylib")"
           SNAPPY_DYLIB="$(find_dylib "$SNAPPY_LIB" "libsnappy.*.dylib")"
+          GSSAPI_DYLIB="$(find_dylib "$KRB5_LIB" "libgssapi_krb5.*.dylib")"
+          KRB5_DYLIB="$(find_dylib "$KRB5_LIB" "libkrb5.*.dylib")"
+          K5CRYPTO_DYLIB="$(find_dylib "$KRB5_LIB" "libk5crypto.*.dylib")"
+          COM_ERR_DYLIB="$(find_dylib "$KRB5_LIB" "libcom_err.*.dylib")"
+          KRB5SUPPORT_DYLIB="$(find_dylib "$KRB5_LIB" "libkrb5support.*.dylib")"
 
           echo "=== Resolved dylib paths ==="
           echo "libpq:          $PQ_DYLIB"
@@ -264,6 +287,11 @@ jobs:
           echo "libcrypto:      $CRYPTO_DYLIB"
           echo "libyaml:        $YAML_DYLIB"
           echo "libsnappy:      $SNAPPY_DYLIB"
+          echo "libgssapi_krb5: $GSSAPI_DYLIB"
+          echo "libkrb5:        $KRB5_DYLIB"
+          echo "libk5crypto:    $K5CRYPTO_DYLIB"
+          echo "libcom_err:     $COM_ERR_DYLIB"
+          echo "libkrb5support: $KRB5SUPPORT_DYLIB"
 
           copy_with_deps "$PQ_DYLIB"
           copy_with_deps "$MYSQL_DYLIB"
@@ -271,6 +299,11 @@ jobs:
           copy_with_deps "$CRYPTO_DYLIB"
           copy_with_deps "$YAML_DYLIB"
           copy_with_deps "$SNAPPY_DYLIB"
+          copy_with_deps "$GSSAPI_DYLIB"
+          copy_with_deps "$KRB5_DYLIB"
+          copy_with_deps "$K5CRYPTO_DYLIB"
+          copy_with_deps "$COM_ERR_DYLIB"
+          copy_with_deps "$KRB5SUPPORT_DYLIB"
 
           echo "=== Vendored files ==="
           ls -la "$LIBEXEC"
@@ -306,7 +339,7 @@ jobs:
             done
           }
 
-          for lib in libpq libmysqlclient libssl libcrypto libyaml libsnappy; do
+          for lib in libpq libmysqlclient libssl libcrypto libyaml libsnappy libgssapi_krb5 libkrb5 libk5crypto libcom_err libkrb5support; do
             SO_FILE="$(ldconfig -p 2>/dev/null | grep "${lib}\\.so" | head -1 | awk '{print $NF}')"
             if [ -n "$SO_FILE" ] && [ -f "$SO_FILE" ]; then
               copy_with_deps "$SO_FILE"
@@ -462,6 +495,8 @@ jobs:
           ruby -e "require 'msgpack'; puts 'msgpack OK'"
           ruby -e "require 'ed25519'; puts 'ed25519 OK'"
           ruby -e "require 'rbtree'; puts 'rbtree OK'"
+          ruby -e "require 'ffi'; puts 'ffi OK'"
+          ruby -e "require 'gssapi'; puts 'gssapi OK'"
 
           if [ "$(uname)" = "Darwin" ]; then
             BREW_PREFIX="$(brew --prefix)"

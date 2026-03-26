@@ -12,6 +12,7 @@ class Legionio < Formula
     sha256 cellar: :any, arm64_sonoma: "a320f60d134e959dfcd212653d764887212c773abfa87bd30b28c6de9baf66fb"
   end
 
+  depends_on "krb5"
   depends_on "openssl@3"
   depends_on "snappy"
   depends_on "redis" => :recommended
