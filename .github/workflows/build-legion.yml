@@ -272,11 +272,11 @@ jobs:
           CRYPTO_DYLIB="$(find_dylib "$SSL_LIB" "libcrypto.*.dylib")"
           YAML_DYLIB="$(find_dylib "$YAML_LIB" "libyaml*.dylib")"
           SNAPPY_DYLIB="$(find_dylib "$SNAPPY_LIB" "libsnappy.*.dylib")"
-          GSSAPI_DYLIB="$(find_dylib "$KRB5_LIB" "libgssapi_krb5.*.dylib")"
-          KRB5_DYLIB="$(find_dylib "$KRB5_LIB" "libkrb5.*.dylib")"
-          K5CRYPTO_DYLIB="$(find_dylib "$KRB5_LIB" "libk5crypto.*.dylib")"
-          KRB5SUPPORT_DYLIB="$(find_dylib "$KRB5_LIB" "libkrb5support.*.dylib")"
-          COM_ERR_DYLIB="$(find_dylib "$KRB5_LIB" "libcom_err.*.dylib")"
+          GSSAPI_DYLIB="$(find_dylib "$KRB5_LIB" "libgssapi_krb5*.dylib")"
+          KRB5_DYLIB="$(find_dylib "$KRB5_LIB" "libkrb5*.dylib")"
+          K5CRYPTO_DYLIB="$(find_dylib "$KRB5_LIB" "libk5crypto*.dylib")"
+          KRB5SUPPORT_DYLIB="$(find_dylib "$KRB5_LIB" "libkrb5support*.dylib")"
+          COM_ERR_DYLIB="$(find_dylib "$KRB5_LIB" "libcom_err*.dylib")"
 
           copy_with_deps "$PQ_DYLIB"
           copy_with_deps "$MYSQL_DYLIB"
@@ -289,6 +289,16 @@ jobs:
           copy_with_deps "$K5CRYPTO_DYLIB"
           copy_with_deps "$KRB5SUPPORT_DYLIB"
           copy_with_deps "$COM_ERR_DYLIB"
+
+          # Explicitly assert that required MIT Kerberos dylibs were vendored.
+          if ! ls "$LIBEXEC"/libgssapi_krb5*.dylib > /dev/null 2>&1; then
+            echo "ERROR: Required Kerberos library libgssapi_krb5*.dylib not found in $LIBEXEC" >&2
+            exit 1
+          fi
+          if ! ls "$LIBEXEC"/libkrb5*.dylib > /dev/null 2>&1; then
+            echo "ERROR: Required Kerberos library libkrb5*.dylib not found in $LIBEXEC" >&2
+            exit 1
+          fi
 
           echo "=== Vendored files ==="
           ls -la "$LIBEXEC"
@@ -369,6 +379,7 @@ jobs:
         if: env.GEM_VERSION != ''
         run: |
           export PATH="$GITHUB_WORKSPACE/legion-ruby/bin:$PATH"
+          export DYLD_FALLBACK_LIBRARY_PATH="$GITHUB_WORKSPACE/legion-ruby/libexec:$(brew --prefix krb5)/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"
 
           echo "=== Ruby ==="
           ruby -v
