@@ -115,7 +115,7 @@ jobs:
       - name: Install build dependencies
         if: steps.ruby-cache.outputs.cache-hit != 'true'
         run: |
-          brew install openssl@3 libyaml rust postgresql@17 mysql-client sqlite snappy
+          brew install openssl@3 libyaml rust postgresql@17 mysql-client sqlite snappy krb5
 
       - name: Download Ruby source
         if: steps.ruby-cache.outputs.cache-hit != 'true'
@@ -264,6 +264,7 @@ jobs:
           SSL_LIB="$(brew --prefix openssl@3)/lib"
           YAML_LIB="$(brew --prefix libyaml)/lib"
           SNAPPY_LIB="$(brew --prefix snappy)/lib"
+          KRB5_LIB="$(brew --prefix krb5)/lib"
 
           PQ_DYLIB="$(find_dylib "$PG_LIB" "libpq.*.dylib")"
           MYSQL_DYLIB="$(find_dylib "$MYSQL_LIB" "libmysqlclient.*.dylib")"
@@ -271,6 +272,11 @@ jobs:
           CRYPTO_DYLIB="$(find_dylib "$SSL_LIB" "libcrypto.*.dylib")"
           YAML_DYLIB="$(find_dylib "$YAML_LIB" "libyaml*.dylib")"
           SNAPPY_DYLIB="$(find_dylib "$SNAPPY_LIB" "libsnappy.*.dylib")"
+          GSSAPI_DYLIB="$(find_dylib "$KRB5_LIB" "libgssapi_krb5.*.dylib")"
+          KRB5_DYLIB="$(find_dylib "$KRB5_LIB" "libkrb5.*.dylib")"
+          K5CRYPTO_DYLIB="$(find_dylib "$KRB5_LIB" "libk5crypto.*.dylib")"
+          KRB5SUPPORT_DYLIB="$(find_dylib "$KRB5_LIB" "libkrb5support.*.dylib")"
+          COM_ERR_DYLIB="$(find_dylib "$KRB5_LIB" "libcom_err.*.dylib")"
 
           copy_with_deps "$PQ_DYLIB"
           copy_with_deps "$MYSQL_DYLIB"
@@ -278,6 +284,11 @@ jobs:
           copy_with_deps "$CRYPTO_DYLIB"
           copy_with_deps "$YAML_DYLIB"
           copy_with_deps "$SNAPPY_DYLIB"
+          copy_with_deps "$GSSAPI_DYLIB"
+          copy_with_deps "$KRB5_DYLIB"
+          copy_with_deps "$K5CRYPTO_DYLIB"
+          copy_with_deps "$KRB5SUPPORT_DYLIB"
+          copy_with_deps "$COM_ERR_DYLIB"
 
           echo "=== Vendored files ==="
           ls -la "$LIBEXEC"
@@ -375,6 +386,7 @@ jobs:
           ruby -e "require 'msgpack'; puts 'msgpack OK'"
           ruby -e "require 'ed25519'; puts 'ed25519 OK'"
           ruby -e "require 'rbtree'; puts 'rbtree OK'"
+          ruby -e "require 'ffi'; require 'gssapi'; puts 'gssapi OK'"
 
           echo "=== Legion gems ==="
           INSTALLED="$(ruby -e "require 'legion/version'; puts Legion::VERSION")"
