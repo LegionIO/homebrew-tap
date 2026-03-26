@@ -375,6 +375,25 @@ jobs:
           fi
           echo "All native binaries signed"
 
+      - name: Patch gssapi loader for vendored krb5
+        if: steps.ruby-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "=== Patching gssapi gem to load krb5 by name (respects DYLD_FALLBACK_LIBRARY_PATH) ==="
+          LOADER="$(find "$GITHUB_WORKSPACE/legion-ruby" -path '*/gssapi-*/lib/gssapi/lib_gssapi_loader.rb' | head -1)"
+          if [ -n "$LOADER" ]; then
+            echo "Found loader: $LOADER"
+            # Replace any absolute path to libgssapi_krb5.dylib with just the bare name.
+            # This covers both the original (/usr/lib/) and any brew --prefix patch.
+            sed -i '' "s|gssapi_lib = '/usr/lib/libgssapi_krb5.dylib'|gssapi_lib = 'libgssapi_krb5.dylib'|" "$LOADER"
+            # Also handle the brew --prefix patched version from build-ruby.yml
+            sed -i '' '/brew_lib.*brew --prefix krb5/c\
+            gssapi_lib = '"'"'libgssapi_krb5.dylib'"'"'' "$LOADER"
+            echo "Patched loader contents:"
+            grep -n 'gssapi_lib' "$LOADER"
+          else
+            echo "WARNING: gssapi loader not found — gssapi gem may not be installed"
+          fi
+
       - name: Verify build
         if: env.GEM_VERSION != ''
         run: |

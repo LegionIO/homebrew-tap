@@ -183,16 +183,15 @@ jobs:
           done || true
           echo "=== Strip complete ==="
 
-          echo "=== Patching gssapi gem to prefer Homebrew MIT Kerberos on macOS ==="
+          echo "=== Patching gssapi gem to load krb5 by name (respects DYLD_FALLBACK_LIBRARY_PATH) ==="
           if [ "$(uname)" = "Darwin" ]; then
-            KRB5_LIB="$(brew --prefix krb5)/lib/libgssapi_krb5.dylib"
             LOADER="$(find "$GITHUB_WORKSPACE/legion-ruby" -path '*/gssapi-*/lib/gssapi/lib_gssapi_loader.rb' | head -1)"
-            if [ -n "$LOADER" ] && [ -f "$KRB5_LIB" ]; then
-              sed -i '' "s|gssapi_lib = '/usr/lib/libgssapi_krb5.dylib'|brew_lib = \`brew --prefix krb5 2>/dev/null\`.chomp; gssapi_lib = File.exist?(\"#{brew_lib}/lib/libgssapi_krb5.dylib\") ? \"#{brew_lib}/lib/libgssapi_krb5.dylib\" : '/usr/lib/libgssapi_krb5.dylib'|" "$LOADER"
+            if [ -n "$LOADER" ]; then
+              sed -i '' "s|gssapi_lib = '/usr/lib/libgssapi_krb5.dylib'|gssapi_lib = 'libgssapi_krb5.dylib'|" "$LOADER"
               echo "  Patched: $LOADER"
-              grep -n 'brew_lib\|gssapi_lib' "$LOADER" || true
+              grep -n 'gssapi_lib' "$LOADER" || true
             else
-              echo "  WARNING: gssapi loader not found or krb5 lib missing"
+              echo "  WARNING: gssapi loader not found"
             fi
           fi
 
