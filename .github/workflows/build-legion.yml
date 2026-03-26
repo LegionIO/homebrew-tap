@@ -408,7 +408,7 @@ jobs:
 
       - name: Upload artifact
         if: env.GEM_VERSION != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.version.outputs.tarball }}
           path: ${{ steps.version.outputs.tarball }}
