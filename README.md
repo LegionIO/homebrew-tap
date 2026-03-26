@@ -21,7 +21,7 @@ brew install legion-dev
 
 | Formula | Description | Size |
 |---------|-------------|------|
-| `legionio-ruby` | Bundled Ruby 3.4.8 with YJIT + native extensions (sqlite3, pg, mysql2, oj, puma, snappy) | ~50MB |
+| `legionio-ruby` | Bundled Ruby 3.4.x with YJIT + native extensions (sqlite3, pg, mysql2, oj, puma, snappy) | ~50MB |
 | `legionio` | LegionIO daemon, core libraries, and agentic extensions | ~10MB |
 | `legion-tty` | Interactive terminal shell and AI chat (`legion` binary) | ~4MB |
 | `legion-dev` | Full development stack (meta-package: all services) | -- |
@@ -72,14 +72,16 @@ brew upgrade legionio                # medium: ~10MB download
 brew services restart legionio       # pick up new version
 ```
 
-## Migrating from `legion` formula
+## Migrating from the legacy `legion` formula
 
-The old `legion` formula is deprecated. To migrate:
+The monolithic `legion` formula is deprecated (replaced by the 3-formula split in 2026-03-20). To migrate:
 
 ```bash
 brew uninstall legion
 brew install legion-tty
 ```
+
+The `legion-tty` install automatically pulls in `legionio` and `legionio-ruby`.
 
 ## Troubleshooting
 

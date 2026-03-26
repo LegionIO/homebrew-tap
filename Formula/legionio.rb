@@ -64,8 +64,9 @@ class Legionio < Formula
     RUBY
 
     ruby_lib = ruby_lib_path
+    krb5_lib = Formula["krb5"].opt_lib
     lib_path_export = if OS.mac?
-                         "export DYLD_FALLBACK_LIBRARY_PATH=\"#{libexec}/libexec\""
+                         "export DYLD_FALLBACK_LIBRARY_PATH=\"#{libexec}/libexec:#{krb5_lib}${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}\""
                        else
                          "export LD_LIBRARY_PATH=\"#{libexec}/libexec${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\""
                        end
@@ -105,6 +106,7 @@ class Legionio < Formula
     # Dev helpers — expose bundled ruby tools
     (bin/"legion-ruby").write <<~BASH
       #!/bin/bash
+      #{lib_path_export}
       exec "#{ruby_bin}" "$@"
     BASH
     (bin/"legion-ruby").chmod 0755
@@ -112,6 +114,7 @@ class Legionio < Formula
     %w[gem bundle irb].each do |tool|
       (bin/"legion-#{tool}").write <<~BASH
         #!/bin/bash
+        #{lib_path_export}
         exec "#{ruby_bin}" "#{libexec}/bin/#{tool}" "$@"
       BASH
       (bin/"legion-#{tool}").chmod 0755
