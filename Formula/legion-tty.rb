@@ -57,7 +57,7 @@ class LegionTty < Formula
       Interactive shell (most users):
         legion                           # rich terminal UI with onboarding
 
-      Ruby 3.4.8 with YJIT is bundled — no separate Ruby installation needed.
+      Ruby 3.4.9 with YJIT is bundled — no separate Ruby installation needed.
 
       The daemon CLI is provided by the legionio formula:
         legionio start                   # start the daemon
