@@ -6,7 +6,7 @@ on:
       ruby_version:
         description: "Ruby version to build"
         required: true
-        default: "3.4.8"
+        default: "3.4.9"
       package_revision:
         description: "Package revision (increment when gems change, same Ruby)"
         required: true

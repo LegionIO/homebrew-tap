@@ -13,7 +13,7 @@ Homebrew tap providing formula installation of the `legion` CLI tool on macOS. U
 ```
 homebrew-tap/
 ├── Formula/
-│   ├── legionio-ruby.rb       # Ruby 3.4.8 runtime with YJIT and vendored native gems
+│   ├── legionio-ruby.rb       # Ruby 3.4.9 runtime with YJIT and vendored native gems
 │   ├── legionio.rb            # LegionIO daemon + operational CLI (legionio start, lex, tasks, mcp)
 │   ├── legion-tty.rb          # Interactive terminal shell + AI chat (legion command)
 │   ├── legion-dev.rb          # Meta-formula: full development stack
@@ -29,7 +29,7 @@ homebrew-tap/
 
 ### `Formula/legionio-ruby.rb` — Ruby Runtime
 
-Installs a self-contained Ruby 3.4.8 with YJIT and pre-compiled native gems:
+Installs a self-contained Ruby 3.4.9 with YJIT and pre-compiled native gems:
 
 - **Source**: Prebuilt tarball from GitHub Releases (`https://github.com/LegionIO/homebrew-tap/releases/download/ruby-{VERSION}-{REVISION}/legion-ruby-{VERSION}-{REVISION}-darwin-arm64.tar.gz`)
 - **Dependencies**: `openssl@3`, `snappy` — no separate Ruby installation needed
@@ -83,7 +83,7 @@ brew install legionio legion-tty
 A `workflow_dispatch` workflow that compiles a prebuilt Ruby tarball and uploads it to GitHub Releases.
 
 **Inputs:**
-- `ruby_version` (default: `3.4.8`)
+- `ruby_version` (default: `3.4.9`)
 - `package_revision` (default: `2`) -- increment when gems change without a Ruby version bump
 
 **Runner:** `macos-14` (ARM64)
@@ -98,11 +98,11 @@ A `workflow_dispatch` workflow that compiles a prebuilt Ruby tarball and uploads
 5. Verifies the result by running `legion version` inside the build environment
 6. Uploads tarball to GitHub Releases
 
-**Release tag format:** `ruby-{VERSION}-{REVISION}` (e.g., `ruby-3.4.8-2`)
+**Release tag format:** `ruby-{VERSION}-{REVISION}` (e.g., `ruby-3.4.9-2`)
 
-**Tarball name:** `legion-ruby-{VERSION}-{REVISION}-{SUFFIX}.tar.gz` (e.g., `legion-ruby-3.4.8-2-darwin-arm64.tar.gz`)
+**Tarball name:** `legion-ruby-{VERSION}-{REVISION}-{SUFFIX}.tar.gz` (e.g., `legion-ruby-3.4.9-2-darwin-arm64.tar.gz`)
 
-**Versioning scheme:** `{ruby_version}-{package_revision}` (e.g., `3.4.8-2`)
+**Versioning scheme:** `{ruby_version}-{package_revision}` (e.g., `3.4.9-2`)
 - Bump `package_revision` when gems change (new gems, updated gems) on the same Ruby
 - Bump `ruby_version` when upgrading the bundled Ruby interpreter
 - Old releases are preserved (no delete-and-replace)
@@ -117,7 +117,7 @@ There are two update paths depending on what changed:
 When Legion gems change (new features, new gems like legion-tty):
 
 1. Trigger `build-ruby.yml` via `workflow_dispatch`
-2. Set `ruby_version` to current (e.g., `3.4.8`)
+2. Set `ruby_version` to current (e.g., `3.4.9`)
 3. Increment `package_revision` (e.g., `1` -> `2`)
 4. The workflow builds the tarball, creates a release, and auto-updates `Formula/legion.rb`
 
@@ -132,9 +132,9 @@ When the bundled Ruby version needs to change:
 
 Example formula reference:
 ```ruby
-url "https://github.com/LegionIO/homebrew-tap/releases/download/ruby-3.4.8-13/legion-ruby-3.4.8-13-darwin-arm64.tar.gz"
+url "https://github.com/LegionIO/homebrew-tap/releases/download/ruby-3.4.9-13/legion-ruby-3.4.9-13-darwin-arm64.tar.gz"
 sha256 "3839ccedf2c31f3434f2bb4984e92664c9e6c17ef0517efda2cca2c0e0f311e3"
-version "3.4.8-13"
+version "3.4.9-13"
 ```
 
 ### Gem Isolation
@@ -149,7 +149,7 @@ The formulas implement 3-layer isolation to prevent system/rbenv gems from leaki
 
 ### Current Version
 
-- **Bundled Ruby**: 3.4.8 (compiled with YJIT, self-contained with vendored native libs)
+- **Bundled Ruby**: 3.4.9 (compiled with YJIT, self-contained with vendored native libs)
 - **legionio gem version**: 1.5.20 (separate gems tarball)
 - **legion-tty gem version**: 0.4.34 (separate gems tarball)
 

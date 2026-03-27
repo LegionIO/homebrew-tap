@@ -74,7 +74,7 @@ Before submitting a pull request:
 Triggered via `workflow_dispatch`. Compiles Ruby 3.4.x with YJIT and pre-installs native extension gems.
 
 **Inputs:**
-- `ruby_version` — Ruby version to compile (default: `3.4.8`)
+- `ruby_version` — Ruby version to compile (default: `3.4.9`)
 - `package_revision` — increment when gems change on the same Ruby
 
 The workflow automatically updates `Formula/legionio-ruby.rb` after a successful build.

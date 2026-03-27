@@ -31,10 +31,10 @@ class LegionDev < Formula
         brew services start vault
         ollama serve
 
-      Ruby 3.4.8 with YJIT is bundled with the legion formula.
+      Ruby 3.4.9 with YJIT is bundled with the legion formula.
       For extension development with your own Ruby, install via rbenv:
-        rbenv install 3.4.8
-        rbenv global 3.4.8
+        rbenv install 3.4.9
+        rbenv global 3.4.9
     EOS
   end
 

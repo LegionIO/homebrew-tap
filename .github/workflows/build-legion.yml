@@ -8,7 +8,7 @@ on:
       ruby_version:
         description: "Ruby version to build"
         required: true
-        default: "3.4.8"
+        default: "3.4.9"
       legionio_version:
         description: "legionio gem version (validated against RubyGems)"
         required: true
@@ -46,7 +46,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     env:
-      RUBY_VERSION: ${{ inputs.ruby_version || github.event.client_payload.ruby_version || '3.4.8' }}
+      RUBY_VERSION: ${{ inputs.ruby_version || github.event.client_payload.ruby_version || '3.4.9' }}
       GEM_VERSION: ${{ inputs.legionio_version || github.event.client_payload.legionio_version }}
       PKG_REVISION: ${{ inputs.package_revision || github.event.client_payload.package_revision || '1' }}
       SUFFIX: ${{ matrix.suffix }}
