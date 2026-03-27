@@ -152,7 +152,7 @@ class Legionio < Formula
         legionio lex list                # list extensions
         legionio --help                  # all operational commands
 
-      Dev helpers (bundled Ruby #{version.to_s.split("-").first} with YJIT):
+      Dev helpers (bundled Ruby 3.4 with YJIT):
         legion-ruby                      # ruby interpreter
         legion-gem                       # gem command
         legion-bundle                    # bundler

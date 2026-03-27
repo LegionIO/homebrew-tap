@@ -469,11 +469,45 @@ jobs:
           fi
           echo "No .bundle files reference Homebrew prefix"
 
+      - name: Strip dead weight from package
+        if: env.GEM_VERSION != ''
+        run: |
+          GEM_DIR="$GITHUB_WORKSPACE/legion-ruby/lib/ruby/gems/3.4.0"
+
+          echo "=== Before strip ==="
+          find "$GITHUB_WORKSPACE/legion-ruby" -type f | wc -l
+
+          # Remove cached .gem tarballs (only needed for reinstall, not runtime)
+          rm -rf "$GEM_DIR/cache"
+
+          # Remove test/spec/doc/.github directories from gems
+          find "$GEM_DIR/gems" -maxdepth 2 -type d \
+            \( -name spec -o -name test -o -name tests -o -name doc -o -name docs \
+               -o -name .github -o -name .circleci -o -name .travis \) \
+            -exec rm -rf {} + 2>/dev/null || true
+
+          # Remove standalone non-essential files from gems
+          find "$GEM_DIR/gems" -maxdepth 2 -type f \
+            \( -name '*.md' -not -name 'README*' -not -name 'LICENSE*' \
+               -o -name '.rspec' -o -name '.rubocop*' -o -name '.yardopts' \
+               -o -name 'Rakefile' -o -name 'Gemfile' -o -name 'Gemfile.lock' \
+               -o -name '.gitignore' -o -name '.editorconfig' \) \
+            -delete 2>/dev/null || true
+
+          # Set --no-document as default for any future gem installs
+          mkdir -p "$GITHUB_WORKSPACE/legion-ruby/etc"
+          echo "gem: --no-document" > "$GITHUB_WORKSPACE/legion-ruby/etc/gemrc"
+
+          echo "=== After strip ==="
+          find "$GITHUB_WORKSPACE/legion-ruby" -type f | wc -l
+
       - name: Package
         if: env.GEM_VERSION != ''
         run: |
-          TARBALL="${{ steps.version.outputs.tarball }}"
+          TARBALL="${LEGION_TARBALL}"
           tar czf "$TARBALL" legion-ruby/
+        env:
+          LEGION_TARBALL: ${{ steps.version.outputs.tarball }}
 
       - name: Upload artifact
         if: env.GEM_VERSION != ''
@@ -486,15 +520,15 @@ jobs:
       - name: Create GitHub Release
         if: env.GEM_VERSION != ''
         run: |
-          TAG="${{ steps.version.outputs.tag }}"
-          TARBALL="${{ steps.version.outputs.tarball }}"
-          FULL_VERSION="${{ steps.version.outputs.full_version }}"
-          gh release create "$TAG" \
-            --title "Legion ${FULL_VERSION} (${SUFFIX})" \
+          gh release create "$LEGION_TAG" \
+            --title "Legion ${LEGION_FULL_VERSION} (${SUFFIX})" \
             --notes "Legion ${GEM_VERSION} with Ruby ${RUBY_VERSION} (revision ${PKG_REVISION}). Self-contained: Ruby + YJIT + all native gems + all Legion/LEX gems + legion-tty." \
-            "$TARBALL"
+            "$LEGION_TARBALL"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LEGION_TAG: ${{ steps.version.outputs.tag }}
+          LEGION_TARBALL: ${{ steps.version.outputs.tarball }}
+          LEGION_FULL_VERSION: ${{ steps.version.outputs.full_version }}
 
   update-formula:
     needs: build
