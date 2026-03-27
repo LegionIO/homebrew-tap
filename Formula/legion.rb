@@ -90,27 +90,45 @@ class Legion < Formula
   private
 
   def install_tls_certificates
-    openssl = Formula["openssl@3"].opt_bin/"openssl"
     c_rehash = Formula["openssl@3"].opt_bin/"c_rehash"
     cert_dir = HOMEBREW_PREFIX/"etc/openssl@3/certs"
     cert_dir.mkpath
 
-    %w[rubygems.org github.com].each do |host|
-      ohai "Fetching TLS certificate chain for #{host}"
-      begin
-        output = `echo | #{openssl} s_client -showcerts -connect #{host}:443 2>/dev/null`
-        certs = output.scan(/-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----/m)
+    count = 0
+
+    if OS.mac?
+      %w[/Library/Keychains/System.keychain
+         /System/Library/Keychains/SystemRootCertificates.keychain].each do |keychain|
+        next unless File.exist?(keychain)
+
+        pem_data = `security find-certificate -a -p "#{keychain}" 2>/dev/null`
+        certs = pem_data.scan(/-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----/m)
         certs.each_with_index do |cert, i|
-          (cert_dir/"#{host}-#{i}.pem").atomic_write(cert + "\n")
+          name = File.basename(keychain, ".keychain").downcase.tr(" ", "-")
+          (cert_dir/"#{name}-#{i}.pem").atomic_write(cert + "\n")
         end
-        ohai "  Saved #{certs.size} certificate(s) for #{host}"
-      rescue => e
-        opoo "Could not fetch certificates for #{host}: #{e.message}"
+        count += certs.size
+      end
+      ohai "Imported #{count} trusted CA(s) from macOS Keychains"
+    else
+      system_bundle = %w[
+        /etc/ssl/certs/ca-certificates.crt
+        /etc/pki/tls/certs/ca-bundle.crt
+        /etc/ssl/ca-bundle.pem
+      ].find { |p| File.exist?(p) }
+      if system_bundle
+        cp system_bundle, cert_dir/"system-ca-bundle.pem"
+        count = File.read(system_bundle).scan(/BEGIN CERTIFICATE/).size
+        ohai "Imported #{count} trusted CA(s) from #{system_bundle}"
+      else
+        opoo "No system CA bundle found — TLS connections may fail"
       end
     end
 
     ohai "Rehashing certificate directory"
     system c_rehash.to_s, cert_dir.to_s
+
+    touch HOMEBREW_PREFIX/"etc/openssl@3/certs/.legion-synced"
   end
 
   def write_example_configs(dir) # rubocop:disable Metrics/MethodLength
