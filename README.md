@@ -17,6 +17,16 @@ For local development with all services:
 brew install legion-dev
 ```
 
+## Casks
+
+| Cask | Description |
+|------|-------------|
+| `legion-interlink` | Desktop AI assistant (Electron, arm64) |
+
+```bash
+brew install --cask legionio/tap/legion-interlink
+```
+
 ## Available Formulae
 
 | Formula | Description | Size |
