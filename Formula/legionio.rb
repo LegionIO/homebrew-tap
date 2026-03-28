@@ -7,9 +7,9 @@ class Legionio < Formula
   license "Apache-2.0"
 
   bottle do
-    root_url "https://github.com/LegionIO/homebrew-tap/releases/download/legion-1.6.29-1/legion-1.6.29-1-darwin-arm64.tar.gz"
-    sha256 cellar: :any, arm64_sequoia: "297e9797593ab407c1a5357c6cd9f0323ec91ca87cbe29bca8d739a7b0be9444"
-    sha256 cellar: :any, arm64_sonoma: "a3f1f34d86fdc44ce358340897f5d89678433a26ab0200125e66345298556ccd"
+    root_url "https://github.com/LegionIO/homebrew-tap/releases/download/bottles-legionio-1.6.29-1"
+    sha256 cellar: :any, arm64_sequoia: "25305bb56faf384b712ff7f0239d0d77b715eeca4e23131bb330b16c35d9ea7d"
+    sha256 cellar: :any, arm64_sonoma: "3f1e23de56815a6857c403e98c55b2526891ab9f94b6b1cb5017878d493c9d08"
   end
 
   depends_on "krb5"
