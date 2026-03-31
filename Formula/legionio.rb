@@ -140,6 +140,7 @@ class Legionio < Formula
   def post_install
     install_tls_certificates unless tls_certs_fresh?
     reinstall_packs
+    background_gem_update
   end
 
   def caveats
@@ -215,6 +216,17 @@ class Legionio < Formula
     end
 
     packs.to_a.sort
+  end
+
+  def background_gem_update
+    ohai "Updating legion gems in background"
+    log_file = var/"log/legion/post-upgrade-update.log"
+    pid = spawn(
+      (bin/"legionio").to_s, "update",
+      [:out, :err] => [log_file.to_s, "w"],
+      pgroup: true
+    )
+    ::Process.detach(pid)
   end
 
   def ruby_lib_path
