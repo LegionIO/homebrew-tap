@@ -193,7 +193,9 @@ class Legionio < Formula
 
     packs.each do |pack|
       ohai "Reinstalling #{pack} pack after upgrade"
-      system bin/"legionio", "setup", pack
+      unless system bin/"legionio", "setup", pack
+        opoo "Pack '#{pack}' reinstall failed — run 'legionio setup #{pack}' manually after upgrade"
+      end
     end
   end
 
