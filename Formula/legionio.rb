@@ -187,13 +187,34 @@ class Legionio < Formula
   private
 
   def reinstall_packs
-    packs_dir = File.expand_path("~/.legionio/.packs")
-    return unless File.directory?(packs_dir)
+    packs = discover_installed_packs
+    return if packs.empty?
 
-    Dir.children(packs_dir).each do |pack|
+    packs.each do |pack|
       ohai "Reinstalling #{pack} pack after upgrade"
       system bin/"legionio", "setup", pack
     end
+  end
+
+  def discover_installed_packs
+    require "json"
+    require "set"
+    packs = Set.new
+
+    # Source 1: marker files from prior `legionio setup <pack>`
+    packs_dir = File.expand_path("~/.legionio/.packs")
+    if File.directory?(packs_dir)
+      Dir.children(packs_dir).each { |p| packs << p }
+    end
+
+    # Source 2: settings file (user-configurable)
+    settings_file = File.expand_path("~/.legionio/settings/packs.json")
+    if File.exist?(settings_file)
+      data = JSON.parse(File.read(settings_file)) rescue {}
+      Array(data["packs"]).each { |p| packs << p.to_s }
+    end
+
+    packs.to_a.sort
   end
 
   def ruby_lib_path
