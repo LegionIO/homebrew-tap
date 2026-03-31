@@ -139,6 +139,8 @@ class Legionio < Formula
 
   def post_install
     install_tls_certificates unless tls_certs_fresh?
+    reinstall_packs
+    background_gem_update
   end
 
   def caveats
@@ -184,6 +186,48 @@ class Legionio < Formula
   end
 
   private
+
+  def reinstall_packs
+    packs = discover_installed_packs
+    return if packs.empty?
+
+    packs.each do |pack|
+      ohai "Reinstalling #{pack} pack after upgrade"
+      system bin/"legionio", "setup", pack
+    end
+  end
+
+  def discover_installed_packs
+    require "json"
+    require "set"
+    packs = Set.new
+
+    # Source 1: marker files from prior `legionio setup <pack>`
+    packs_dir = File.expand_path("~/.legionio/.packs")
+    if File.directory?(packs_dir)
+      Dir.children(packs_dir).each { |p| packs << p }
+    end
+
+    # Source 2: settings file (user-configurable)
+    settings_file = File.expand_path("~/.legionio/settings/packs.json")
+    if File.exist?(settings_file)
+      data = JSON.parse(File.read(settings_file)) rescue {}
+      Array(data["packs"]).each { |p| packs << p.to_s }
+    end
+
+    packs.to_a.sort
+  end
+
+  def background_gem_update
+    ohai "Updating legion gems in background"
+    log_file = var/"log/legion/post-upgrade-update.log"
+    pid = spawn(
+      (bin/"legionio").to_s, "update",
+      [:out, :err] => [log_file.to_s, "w"],
+      pgroup: true
+    )
+    ::Process.detach(pid)
+  end
 
   def ruby_lib_path
     ruby_ver = Dir[libexec/"lib/ruby/[0-9]*"].reject { |p| p.include?("gems") }.first
