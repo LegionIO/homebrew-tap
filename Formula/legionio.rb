@@ -139,6 +139,7 @@ class Legionio < Formula
 
   def post_install
     install_tls_certificates unless tls_certs_fresh?
+    reinstall_packs
   end
 
   def caveats
@@ -184,6 +185,16 @@ class Legionio < Formula
   end
 
   private
+
+  def reinstall_packs
+    packs_dir = File.expand_path("~/.legionio/.packs")
+    return unless File.directory?(packs_dir)
+
+    Dir.children(packs_dir).each do |pack|
+      ohai "Reinstalling #{pack} pack after upgrade"
+      system bin/"legionio", "setup", pack
+    end
+  end
 
   def ruby_lib_path
     ruby_ver = Dir[libexec/"lib/ruby/[0-9]*"].reject { |p| p.include?("gems") }.first
