@@ -1,13 +1,13 @@
 class Legionio < Formula
   desc "LegionIO async job engine, agentic AI daemon, and interactive shell"
   homepage "https://github.com/LegionIO/LegionIO"
-  url "https://github.com/LegionIO/homebrew-tap/releases/download/legion-1.7.14-1/legion-1.7.14-1-darwin-arm64.tar.gz"
-  sha256 "ea51611914da080b832c2a70238172059e08bc1c900553c4b9b0558efd0be6b0"
-  version "1.7.14-1"
+  url "https://github.com/LegionIO/homebrew-tap/releases/download/legion-1.7.15-1/legion-1.7.15-1-darwin-arm64.tar.gz"
+  sha256 "0fd0e13d6b4b85c2960b89d4b6ed46a56043f0e304108443b6afb919b4b67ca6"
+  version "1.7.15-1"
   license "Apache-2.0"
 
   bottle do
-    root_url "https://github.com/LegionIO/homebrew-tap/releases/download/bottles-legionio-1.7.14-1"
+    root_url "https://github.com/LegionIO/homebrew-tap/releases/download/legion-1.7.15-1/legion-1.7.15-1-darwin-arm64.tar.gz"
     sha256 cellar: :any, arm64_sequoia: "0084cd29dfad1fbe938c2af31bf6ebd3c4746d0f65a864b904abaa02586ce714"
     sha256 cellar: :any, arm64_sonoma: "ed4eee646e7caa176c5e60975e788f0eec665697eade2eb9d362acf6e1a329e5"
   end
