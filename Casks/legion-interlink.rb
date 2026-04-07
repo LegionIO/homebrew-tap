@@ -1,8 +1,8 @@
 cask "legion-interlink" do
-  version "1.0.16"
-  sha256 "a4839f051c8b913872de07eef7f9dc5d64b43ea215905396143b93d627dff803"
+  version "1.0.17"
+  sha256 "cff5ec3890f0f363030a02c7d72bbcc2f4b05ddd96e21d8a0c3c558ff460ef0a"
 
-  url "https://github.com/LegionIO/legion-interlink/releases/download/v#{version}/Legion-Interlink-1.0.16-arm64.dmg"
+  url "https://github.com/LegionIO/legion-interlink/releases/download/v#{version}/Legion-Interlink-1.0.17-arm64.dmg"
   name "Legion Interlink"
   desc "LegionIO desktop client"
   homepage "https://github.com/LegionIO/legion-interlink"
