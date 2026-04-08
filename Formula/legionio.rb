@@ -265,8 +265,12 @@ class Legionio < Formula
       if OS.mac?
         # This picks up corporate CAs (Zscaler, Optum, etc.) and system root CAs
         # so our bundled Ruby/OpenSSL trusts the same hosts as the rest of macOS.
-        %w[/Library/Keychains/System.keychain
-           /System/Library/Keychains/SystemRootCertificates.keychain].each do |keychain|
+        # The login keychain is where JAMF/corporate provisioning drops internal CAs.
+        login_keychain = File.expand_path("~/Library/Keychains/login.keychain-db")
+        keychains = %w[/Library/Keychains/System.keychain
+                       /System/Library/Keychains/SystemRootCertificates.keychain]
+        keychains << login_keychain
+        keychains.each do |keychain|
           next unless File.exist?(keychain)
 
           pem_data = `security find-certificate -a -p "#{keychain}" 2>/dev/null`
