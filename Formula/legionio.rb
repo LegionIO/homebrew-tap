@@ -333,6 +333,26 @@ class Legionio < Formula
     if needs_rehash
       ohai "Rehashing certificate directory"
       system c_rehash.to_s, cert_dir.to_s
+
+      # Append imported certs to the OpenSSL CA bundle (cert.pem).
+      # Ruby's set_default_paths primarily uses cert.pem for verification;
+      # individual PEMs in the certs dir alone are not sufficient.
+      cert_pem = HOMEBREW_PREFIX/"etc/openssl@3/cert.pem"
+      if cert_pem.exist?
+        existing = cert_pem.read
+        appended = 0
+        File.open(cert_pem.to_s, "a") do |f|
+          Dir[cert_dir/"*.pem"].each do |pem_file|
+            File.read(pem_file).scan(/-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----/m).each do |cert|
+              unless existing.include?(cert)
+                f.puts("\n#{cert}")
+                appended += 1
+              end
+            end
+          end
+        end
+        ohai "Appended #{appended} new certificate(s) to cert.pem" if appended > 0
+      end
     end
   end
 
