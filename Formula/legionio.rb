@@ -16,10 +16,6 @@ class Legionio < Formula
   depends_on "openssl@3"
   depends_on "snappy"
   depends_on "redis" => :recommended
-  depends_on "ollama" => :optional
-  depends_on "postgresql@17" => :optional
-  depends_on "rabbitmq" => :optional
-  depends_on "vault" => :optional
 
   def install
     libexec.install Dir["bin", "lib", "libexec", "include", "share"]
