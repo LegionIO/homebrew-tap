@@ -67,8 +67,6 @@ class Legionio < Formula
                          "export LD_LIBRARY_PATH=\"#{libexec}/libexec${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\""
                        end
 
-    ssl_cert_dir = HOMEBREW_PREFIX/"etc/openssl@3/certs"
-
     # legionio — daemon CLI
     (bin/"legionio").write <<~BASH
       #!/bin/bash
@@ -77,7 +75,6 @@ class Legionio < Formula
       export GEM_HOME="#{gem_dir}"
       export RUBYLIB="#{ruby_lib}"
       #{lib_path_export}
-      export SSL_CERT_DIR="#{ssl_cert_dir}"
       export RUBYGEMS_GEMDEPS=""
       export BUNDLE_GEMFILE=""
       export RUBYOPT=""
@@ -94,7 +91,6 @@ class Legionio < Formula
       export GEM_HOME="#{gem_dir}"
       export RUBYLIB="#{ruby_lib}"
       #{lib_path_export}
-      export SSL_CERT_DIR="#{ssl_cert_dir}"
       export RUBYGEMS_GEMDEPS=""
       export BUNDLE_GEMFILE=""
       export RUBYOPT=""
@@ -107,7 +103,6 @@ class Legionio < Formula
     (bin/"legion-ruby").write <<~BASH
       #!/bin/bash
       #{lib_path_export}
-      export SSL_CERT_DIR="#{ssl_cert_dir}"
       exec "#{ruby_bin}" "$@"
     BASH
     (bin/"legion-ruby").chmod 0755
@@ -116,7 +111,6 @@ class Legionio < Formula
       (bin/"legion-#{tool}").write <<~BASH
         #!/bin/bash
         #{lib_path_export}
-        export SSL_CERT_DIR="#{ssl_cert_dir}"
         exec "#{ruby_bin}" "#{libexec}/bin/#{tool}" "$@"
       BASH
       (bin/"legion-#{tool}").chmod 0755
@@ -333,26 +327,6 @@ class Legionio < Formula
     if needs_rehash
       ohai "Rehashing certificate directory"
       system c_rehash.to_s, cert_dir.to_s
-
-      # Append imported certs to the OpenSSL CA bundle (cert.pem).
-      # Ruby's set_default_paths primarily uses cert.pem for verification;
-      # individual PEMs in the certs dir alone are not sufficient.
-      cert_pem = HOMEBREW_PREFIX/"etc/openssl@3/cert.pem"
-      if cert_pem.exist?
-        existing = cert_pem.read
-        appended = 0
-        File.open(cert_pem.to_s, "a") do |f|
-          Dir[cert_dir/"*.pem"].each do |pem_file|
-            File.read(pem_file).scan(/-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----/m).each do |cert|
-              unless existing.include?(cert)
-                f.puts("\n#{cert}")
-                appended += 1
-              end
-            end
-          end
-        end
-        ohai "Appended #{appended} new certificate(s) to cert.pem" if appended > 0
-      end
     end
   end
 
