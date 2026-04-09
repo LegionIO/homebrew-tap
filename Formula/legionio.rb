@@ -67,6 +67,8 @@ class Legionio < Formula
                          "export LD_LIBRARY_PATH=\"#{libexec}/libexec${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\""
                        end
 
+    legion_python_venv = File.expand_path("~/.legionio/python")
+
     # legionio — daemon CLI
     (bin/"legionio").write <<~BASH
       #!/bin/bash
@@ -79,6 +81,8 @@ class Legionio < Formula
       export BUNDLE_GEMFILE=""
       export RUBYOPT=""
       export GEM_SPEC_CACHE="#{gem_dir}/spec_cache"
+      export LEGION_PYTHON_VENV="${HOME}/.legionio/python"
+      export LEGION_PYTHON="${HOME}/.legionio/python/bin/python3"
       exec "#{libexec}/bin/ruby" "#{libexec}/bin/legionio" "$@"
     BASH
     (bin/"legionio").chmod 0755
@@ -95,6 +99,8 @@ class Legionio < Formula
       export BUNDLE_GEMFILE=""
       export RUBYOPT=""
       export GEM_SPEC_CACHE="#{gem_dir}/spec_cache"
+      export LEGION_PYTHON_VENV="${HOME}/.legionio/python"
+      export LEGION_PYTHON="${HOME}/.legionio/python/bin/python3"
       exec "#{libexec}/bin/ruby" "#{libexec}/bin/legion" "$@"
     BASH
     (bin/"legion").chmod 0755
@@ -136,6 +142,7 @@ class Legionio < Formula
   def post_install
     install_tls_certificates
     reinstall_packs
+    setup_python_venv
     background_gem_update
   end
 
@@ -155,6 +162,12 @@ class Legionio < Formula
         legion-gem                       # gem command
         legion-bundle                    # bundler
         legion-irb                       # interactive ruby
+
+      Python environment (for document/data tools):
+        legionio setup python            # create/repair venv + install packages
+        legionio setup python --rebuild  # destroy and recreate from scratch
+        legionio setup python --packages <name> [<name>...]  # add extra packages
+        $LEGION_PYTHON                   # path to the venv interpreter
 
       Config:  ~/.legionio/settings/
       Logs:    #{var}/log/legion/legion.log
@@ -182,6 +195,86 @@ class Legionio < Formula
   end
 
   private
+
+  # ---------------------------------------------------------------------------
+  # Python venv — create ~/.legionio/python and pre-install document/data libs
+  # ---------------------------------------------------------------------------
+  PYTHON_PACKAGES = %w[
+    python-pptx
+    python-docx
+    openpyxl
+    pandas
+    pillow
+    requests
+    lxml
+    PyYAML
+    tabulate
+    markdown
+  ].freeze
+
+  PYTHON_VENV_DIR = File.expand_path("~/.legionio/python")
+  PYTHON_MARKER   = File.expand_path("~/.legionio/.python-venv")
+
+  def setup_python_venv
+    python3 = find_python3
+    unless python3
+      opoo "python3 not found — skipping Legion Python venv setup"
+      opoo "Install it with: brew install python"
+      return
+    end
+
+    if File.exist?("#{PYTHON_VENV_DIR}/pyvenv.cfg")
+      ohai "Legion Python venv already exists at #{PYTHON_VENV_DIR}"
+    else
+      ohai "Creating Legion Python venv at #{PYTHON_VENV_DIR}"
+      FileUtils.mkdir_p(File.dirname(PYTHON_VENV_DIR))
+      unless system(python3, "-m", "venv", PYTHON_VENV_DIR)
+        opoo "Failed to create Python venv — run 'legionio setup python' manually"
+        return
+      end
+    end
+
+    pip = "#{PYTHON_VENV_DIR}/bin/pip"
+    unless File.executable?(pip)
+      opoo "pip not found in venv — run 'legionio setup python --rebuild' to repair"
+      return
+    end
+
+    ohai "Installing Legion Python packages: #{PYTHON_PACKAGES.join(', ')}"
+    unless system(pip, "install", "--quiet", "--upgrade", *PYTHON_PACKAGES)
+      opoo "Some Python packages failed to install — run 'legionio setup python' to retry"
+    end
+
+    write_python_marker(python3, PYTHON_PACKAGES)
+    ohai "Legion Python environment ready: #{PYTHON_VENV_DIR}/bin/python3"
+  end
+
+  def find_python3
+    candidates = %w[
+      /opt/homebrew/bin/python3
+      /usr/local/bin/python3
+      /usr/bin/python3
+    ]
+    # Also honour whatever python3 is on PATH at install time
+    path_python = `command -v python3 2>/dev/null`.strip
+    candidates.unshift(path_python) unless path_python.empty?
+    candidates.uniq.find { |p| File.executable?(p) }
+  end
+
+  def write_python_marker(python3, packages)
+    require "json"
+    python_version = `"#{python3}" --version 2>&1`.strip
+    File.write(PYTHON_MARKER, JSON.pretty_generate(
+      venv:         PYTHON_VENV_DIR,
+      python:       python_version,
+      packages:     packages,
+      installed_at: Time.now.utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+    ))
+  rescue Errno::EPERM, Errno::EACCES => e
+    opoo "Could not write Python venv marker: #{e.message}"
+  end
+
+  # ---------------------------------------------------------------------------
 
   def reinstall_packs
     packs = discover_installed_packs
