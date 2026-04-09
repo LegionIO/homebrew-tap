@@ -14,7 +14,7 @@ class Legionio < Formula
 
   depends_on "krb5"
   depends_on "openssl@3"
-  depends_on "python@3" => :recommended
+  depends_on "python@3.13" => :recommended
   depends_on "snappy"
   depends_on "redis" => :recommended
 
@@ -121,6 +121,31 @@ class Legionio < Formula
       (bin/"legion-#{tool}").chmod 0755
     end
 
+    # Python venv helpers — use the Legion-managed venv interpreter/pip
+    (bin/"legion-python").write <<~BASH
+      #!/bin/bash
+      VENV="${HOME}/.legionio/python"
+      if [ -x "${VENV}/bin/python3" ]; then
+        exec "${VENV}/bin/python3" "$@"
+      else
+        echo "Legion Python venv not found. Run: legionio setup python" >&2
+        exit 1
+      fi
+    BASH
+    (bin/"legion-python").chmod 0755
+
+    (bin/"legion-pip").write <<~BASH
+      #!/bin/bash
+      VENV="${HOME}/.legionio/python"
+      if [ -x "${VENV}/bin/pip3" ]; then
+        exec "${VENV}/bin/pip3" "$@"
+      else
+        echo "Legion Python venv not found. Run: legionio setup python" >&2
+        exit 1
+      fi
+    BASH
+    (bin/"legion-pip").chmod 0755
+
     (var/"log/legion").mkpath
     (var/"lib/legion").mkpath
     (var/"run").mkpath
@@ -162,6 +187,10 @@ class Legionio < Formula
         legion-bundle                    # bundler
         legion-irb                       # interactive ruby
 
+      Python helpers (Legion-managed venv):
+        legion-python                    # python3 interpreter
+        legion-pip                       # pip3 package manager
+
       Python environment (for document/data tools):
         legionio setup python            # create/repair venv + install packages
         legionio setup python --rebuild  # destroy and recreate from scratch
@@ -196,6 +225,12 @@ class Legionio < Formula
   private
 
   def setup_python_venv
+    python3 = %w[/opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3].find { |p| File.executable?(p) }
+    unless python3
+      opoo "python3 not found — skipping Python venv setup. Install with: brew install python"
+      return
+    end
+
     ohai "Setting up Legion Python environment"
     unless system bin/"legionio", "setup", "python"
       opoo "Python venv setup failed — run 'legionio setup python' manually"
