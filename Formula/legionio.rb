@@ -80,8 +80,8 @@ class Legionio < Formula
       export BUNDLE_GEMFILE=""
       export RUBYOPT=""
       export GEM_SPEC_CACHE="#{gem_dir}/spec_cache"
-      export LEGION_PYTHON_VENV="${HOME}/.legionio/python"
-      export LEGION_PYTHON="${HOME}/.legionio/python/bin/python3"
+      export LEGION_PYTHON_VENV="#{libexec}/python"
+      export LEGION_PYTHON="#{libexec}/python/bin/python3"
       exec "#{libexec}/bin/ruby" "#{libexec}/bin/legionio" "$@"
     BASH
     (bin/"legionio").chmod 0755
@@ -98,8 +98,8 @@ class Legionio < Formula
       export BUNDLE_GEMFILE=""
       export RUBYOPT=""
       export GEM_SPEC_CACHE="#{gem_dir}/spec_cache"
-      export LEGION_PYTHON_VENV="${HOME}/.legionio/python"
-      export LEGION_PYTHON="${HOME}/.legionio/python/bin/python3"
+      export LEGION_PYTHON_VENV="#{libexec}/python"
+      export LEGION_PYTHON="#{libexec}/python/bin/python3"
       exec "#{libexec}/bin/ruby" "#{libexec}/bin/legion" "$@"
     BASH
     (bin/"legion").chmod 0755
@@ -225,6 +225,11 @@ class Legionio < Formula
 
   private
 
+  PYTHON_PACKAGES = %w[
+    python-pptx python-docx openpyxl pandas pillow
+    requests lxml PyYAML tabulate markdown
+  ].freeze
+
   def setup_python_venv
     python3 = find_python3
     unless python3
@@ -232,10 +237,29 @@ class Legionio < Formula
       return
     end
 
-    ohai "Setting up Legion Python environment"
-    unless system bin/"legionio", "setup", "python"
-      opoo "Python venv setup failed — run 'legionio setup python' manually"
+    venv_dir = libexec/"python"
+    if venv_dir.exist?
+      ohai "Legion Python venv already exists at #{venv_dir}"
+    else
+      ohai "Creating Legion Python venv at #{venv_dir}"
+      unless system python3, "-m", "venv", venv_dir.to_s
+        opoo "Failed to create Python venv — run 'legionio setup python' manually"
+        return
+      end
     end
+
+    pip = venv_dir/"bin/pip3"
+    unless pip.executable?
+      opoo "pip3 not found in venv — run 'legionio setup python --rebuild'"
+      return
+    end
+
+    ohai "Installing Python packages: #{PYTHON_PACKAGES.join(', ')}"
+    unless system pip.to_s, "install", "--quiet", "--upgrade", *PYTHON_PACKAGES
+      opoo "Some Python packages failed — run 'legionio setup python' to retry"
+    end
+
+    ohai "Legion Python environment ready: #{venv_dir}/bin/python3"
   end
 
   def find_python3
