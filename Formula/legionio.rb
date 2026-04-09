@@ -124,7 +124,7 @@ class Legionio < Formula
     # Python venv helpers — use the Legion-managed venv interpreter/pip
     (bin/"legion-python").write <<~BASH
       #!/bin/bash
-      VENV="${HOME}/.legionio/python"
+      VENV="${LEGION_PYTHON_VENV:-${HOME}/.legionio/python}"
       if [ -x "${VENV}/bin/python3" ]; then
         exec "${VENV}/bin/python3" "$@"
       else
@@ -136,7 +136,7 @@ class Legionio < Formula
 
     (bin/"legion-pip").write <<~BASH
       #!/bin/bash
-      VENV="${HOME}/.legionio/python"
+      VENV="${LEGION_PYTHON_VENV:-${HOME}/.legionio/python}"
       if [ -x "${VENV}/bin/pip3" ]; then
         exec "${VENV}/bin/pip3" "$@"
       else
@@ -196,6 +196,7 @@ class Legionio < Formula
         legionio setup python --rebuild  # destroy and recreate from scratch
         legionio setup python --packages <name> [<name>...]  # add extra packages
         $LEGION_PYTHON                   # path to the venv interpreter
+        $LEGION_PYTHON_VENV              # path to the venv root
 
       Config:  ~/.legionio/settings/
       Logs:    #{var}/log/legion/legion.log
@@ -225,7 +226,7 @@ class Legionio < Formula
   private
 
   def setup_python_venv
-    python3 = %w[/opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3].find { |p| File.executable?(p) }
+    python3 = find_python3
     unless python3
       opoo "python3 not found — skipping Python venv setup. Install with: brew install python"
       return
@@ -235,6 +236,21 @@ class Legionio < Formula
     unless system bin/"legionio", "setup", "python"
       opoo "Python venv setup failed — run 'legionio setup python' manually"
     end
+  end
+
+  def find_python3
+    # 1. Prefer the Homebrew-managed Python dependency when available
+    if Formula["python@3.13"].any_version_installed?
+      candidate = Formula["python@3.13"].opt_bin/"python3"
+      return candidate.to_s if candidate.executable?
+    end
+
+    # 2. Resolve via PATH (handles Linuxbrew, nix, non-default prefixes, etc.)
+    path_python = which("python3")
+    return path_python.to_s if path_python
+
+    # 3. Fall back to well-known locations as a last resort
+    %w[/opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3].find { |p| File.executable?(p) }
   end
 
   def reinstall_packs
