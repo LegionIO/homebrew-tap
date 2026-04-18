@@ -28,35 +28,21 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  # Runs once (not per-matrix) to validate the gem and compute the release tag,
+  # so both build legs share the same revision number without racing.
+  compute-version:
+    runs-on: ubuntu-latest
+    if: inputs.legionio_version || github.event.client_payload.legionio_version
     outputs:
       gem_version: ${{ steps.version.outputs.gem_version }}
       pkg_revision: ${{ steps.version.outputs.pkg_revision }}
       tag: ${{ steps.version.outputs.tag }}
-      tarball: ${{ steps.version.outputs.tarball }}
       full_version: ${{ steps.version.outputs.full_version }}
-
-    strategy:
-      matrix:
-        include:
-          - os: macos-14
-            arch: arm64
-            suffix: darwin-arm64
-
-    runs-on: ${{ matrix.os }}
-
     env:
-      RUBY_VERSION: ${{ inputs.ruby_version || github.event.client_payload.ruby_version || '3.4.9' }}
       GEM_VERSION: ${{ inputs.legionio_version || github.event.client_payload.legionio_version }}
       PKG_REVISION: ${{ inputs.package_revision || github.event.client_payload.package_revision || '1' }}
-      SUFFIX: ${{ matrix.suffix }}
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Validate legionio gem exists on RubyGems
-        if: env.GEM_VERSION != ''
         run: |
           MAX_ATTEMPTS=10
           WAIT_SECONDS=30
@@ -71,12 +57,10 @@ jobs:
             sleep $WAIT_SECONDS
           done
           echo "::error::legionio ${GEM_VERSION} not found on RubyGems after ${MAX_ATTEMPTS} attempts"
-          echo "Available versions:"
           curl -s "https://rubygems.org/api/v1/versions/legionio.json" | jq -r '.[0:5] | .[].number'
           exit 1
 
       - name: Compute version tag (auto-increment revision)
-        if: env.GEM_VERSION != ''
         id: version
         run: |
           LATEST=$(gh release list --limit 100 --json tagName --jq \
@@ -89,18 +73,49 @@ jobs:
           echo "gem_version=${GEM_VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=legion-${GEM_VERSION}-${NEXT}" >> "$GITHUB_OUTPUT"
           echo "full_version=${GEM_VERSION}-${NEXT}" >> "$GITHUB_OUTPUT"
-          echo "tarball=legion-${GEM_VERSION}-${NEXT}-${SUFFIX}.tar.gz" >> "$GITHUB_OUTPUT"
           echo "pkg_revision=${NEXT}" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    needs: compute-version
+    # Run even when compute-version is skipped (push to main without a gem version
+    # still warms the Ruby compile cache for both architectures).
+    if: always()
+    outputs:
+      gem_version: ${{ needs.compute-version.outputs.gem_version }}
+      tag: ${{ needs.compute-version.outputs.tag }}
+      full_version: ${{ needs.compute-version.outputs.full_version }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            arch: arm64
+            suffix: darwin-arm64
+          - os: macos-13
+            arch: x86_64
+            suffix: darwin-x86_64
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      RUBY_VERSION: ${{ inputs.ruby_version || github.event.client_payload.ruby_version || '3.4.9' }}
+      GEM_VERSION: ${{ needs.compute-version.outputs.gem_version }}
+      SUFFIX: ${{ matrix.suffix }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Cache compiled Ruby
         uses: actions/cache@v4
         id: ruby-cache
         with:
           path: legion-ruby
-          key: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v6-${{ hashFiles('.github/workflows/build-legion.yml') }}
-          restore-keys: ruby-${{ inputs.ruby_version }}-${{ matrix.suffix }}-v6-
+          key: ruby-${{ env.RUBY_VERSION }}-${{ matrix.suffix }}-v6-${{ hashFiles('.github/workflows/build-legion.yml') }}
+          restore-keys: ruby-${{ env.RUBY_VERSION }}-${{ matrix.suffix }}-v6-
 
       - name: Cache Homebrew packages
         if: steps.ruby-cache.outputs.cache-hit != 'true'
@@ -504,65 +519,135 @@ jobs:
       - name: Package
         if: env.GEM_VERSION != ''
         run: |
-          TARBALL="${LEGION_TARBALL}"
+          TARBALL="legion-${LEGION_FULL_VERSION}-${SUFFIX}.tar.gz"
           tar czf "$TARBALL" legion-ruby/
         env:
-          LEGION_TARBALL: ${{ steps.version.outputs.tarball }}
+          LEGION_FULL_VERSION: ${{ needs.compute-version.outputs.full_version }}
 
       - name: Upload artifact
         if: env.GEM_VERSION != ''
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.version.outputs.tarball }}
-          path: ${{ steps.version.outputs.tarball }}
+          name: legion-${{ needs.compute-version.outputs.full_version }}-${{ matrix.suffix }}.tar.gz
+          path: legion-${{ needs.compute-version.outputs.full_version }}-${{ matrix.suffix }}.tar.gz
           retention-days: 30
 
       - name: Create GitHub Release
         if: env.GEM_VERSION != ''
         run: |
-          gh release create "$LEGION_TAG" \
-            --title "Legion ${LEGION_FULL_VERSION} (${SUFFIX})" \
-            --notes "Legion ${GEM_VERSION} with Ruby ${RUBY_VERSION} (revision ${PKG_REVISION}). Self-contained: Ruby + YJIT + all native gems + all Legion/LEX gems + legion-tty." \
-            "$LEGION_TARBALL"
+          TARBALL="legion-${LEGION_FULL_VERSION}-${SUFFIX}.tar.gz"
+          # Both matrix jobs share the same tag — first to finish creates the release,
+          # second uploads its tarball to the existing release.
+          # Capture stderr so "already exists" is handled gracefully without
+          # silencing auth failures or network errors.
+          GH_ERR="$(mktemp)"
+          if gh release create "$LEGION_TAG" \
+            --title "Legion ${LEGION_FULL_VERSION}" \
+            --notes "Legion ${GEM_VERSION} with Ruby ${RUBY_VERSION} (revision ${LEGION_PKG_REVISION}). Self-contained: Ruby + YJIT + all native gems + all Legion/LEX gems + legion-tty. Includes darwin-arm64 and darwin-x86_64." \
+            "$TARBALL" 2>"$GH_ERR"; then
+            echo "Created release ${LEGION_TAG}"
+          elif grep -qi "already exists" "$GH_ERR"; then
+            echo "Release ${LEGION_TAG} already exists — uploading ${TARBALL}"
+            gh release upload "$LEGION_TAG" "$TARBALL" --clobber
+          else
+            cat "$GH_ERR" >&2
+            rm -f "$GH_ERR"
+            exit 1
+          fi
+          rm -f "$GH_ERR"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LEGION_TAG: ${{ steps.version.outputs.tag }}
-          LEGION_TARBALL: ${{ steps.version.outputs.tarball }}
-          LEGION_FULL_VERSION: ${{ steps.version.outputs.full_version }}
+          LEGION_TAG: ${{ needs.compute-version.outputs.tag }}
+          LEGION_FULL_VERSION: ${{ needs.compute-version.outputs.full_version }}
+          LEGION_PKG_REVISION: ${{ needs.compute-version.outputs.pkg_revision }}
 
   update-formula:
-    needs: build
-    if: needs.build.outputs.gem_version != ''
+    needs: [compute-version, build]
+    if: needs.compute-version.outputs.gem_version != ''
     runs-on: macos-14
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download tarball for SHA256
+      - name: Download tarballs and compute SHA256
         run: |
-          TAG="${LEGION_TAG}"
-          TARBALL="${LEGION_TARBALL}"
-          gh release download "$TAG" --pattern "$TARBALL" --clobber
-          SHA="$(shasum -a 256 "$TARBALL" | awk '{print $1}')"
-          echo "SHA256=$SHA" >> "$GITHUB_ENV"
-          echo "TARBALL=$TARBALL" >> "$GITHUB_ENV"
-          echo "TAG=$TAG" >> "$GITHUB_ENV"
-          echo "FULL_VERSION=${LEGION_FULL_VERSION}" >> "$GITHUB_ENV"
+          TAG="${{ needs.compute-version.outputs.tag }}"
+          FULL_VERSION="${{ needs.compute-version.outputs.full_version }}"
+          ARM64_TARBALL="legion-${FULL_VERSION}-darwin-arm64.tar.gz"
+          X86_64_TARBALL="legion-${FULL_VERSION}-darwin-x86_64.tar.gz"
+          ROOT_URL="https://github.com/LegionIO/homebrew-tap/releases/download/${TAG}"
+
+          # Verify both arch tarballs are present before attempting download.
+          # If a build leg was skipped or failed, this gives a clear error rather
+          # than a confusing "asset not found" from gh release download.
+          echo "Verifying release assets for ${TAG}..."
+          RELEASE_ASSETS="$(gh release view "$TAG" --json assets --jq '[.assets[].name]')"
+          for TARBALL in "$ARM64_TARBALL" "$X86_64_TARBALL"; do
+            if ! echo "$RELEASE_ASSETS" | jq -e --arg t "$TARBALL" 'index($t) != null' > /dev/null; then
+              echo "::error::Expected release asset not found: ${TARBALL}"
+              echo "Available assets: ${RELEASE_ASSETS}"
+              exit 1
+            fi
+          done
+
+          gh release download "$TAG" --pattern "$ARM64_TARBALL" --clobber
+          gh release download "$TAG" --pattern "$X86_64_TARBALL" --clobber
+
+          ARM64_SHA="$(shasum -a 256 "$ARM64_TARBALL" | awk '{print $1}')"
+          X86_64_SHA="$(shasum -a 256 "$X86_64_TARBALL" | awk '{print $1}')"
+
+          echo "ARM64_SHA=${ARM64_SHA}"                         >> "$GITHUB_ENV"
+          echo "X86_64_SHA=${X86_64_SHA}"                       >> "$GITHUB_ENV"
+          echo "ARM64_URL=${ROOT_URL}/${ARM64_TARBALL}"         >> "$GITHUB_ENV"
+          echo "X86_64_URL=${ROOT_URL}/${X86_64_TARBALL}"       >> "$GITHUB_ENV"
+          echo "FULL_VERSION=${FULL_VERSION}"                   >> "$GITHUB_ENV"
         env:
-          LEGION_TAG: ${{ needs.build.outputs.tag }}
-          LEGION_TARBALL: ${{ needs.build.outputs.tarball }}
-          LEGION_FULL_VERSION: ${{ needs.build.outputs.full_version }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update formula
         run: |
-          FORMULA="Formula/legionio.rb"
-          URL="https://github.com/LegionIO/homebrew-tap/releases/download/${TAG}/${TARBALL}"
-          sed -i '' "s|url \".*\"|url \"${URL}\"|" "$FORMULA"
-          sed -i '' "s|sha256 \".*\"|sha256 \"${SHA256}\"|" "$FORMULA"
-          sed -i '' "s|version \".*\"|version \"${FULL_VERSION}\"|" "$FORMULA"
-          echo "=== Updated formula ==="
-          head -8 "$FORMULA"
+          python3 - << 'PYEOF'
+          import re, os
+
+          formula    = "Formula/legionio.rb"
+          full_version = os.environ["FULL_VERSION"]
+          arm64_url    = os.environ["ARM64_URL"]
+          arm64_sha    = os.environ["ARM64_SHA"]
+          x86_64_url   = os.environ["X86_64_URL"]
+          x86_64_sha   = os.environ["X86_64_SHA"]
+
+          with open(formula) as f:
+              content = f.read()
+
+          # Update version field
+          content = re.sub(r'  version ".*?"', f'  version "{full_version}"', content)
+
+          # Remove flat url/sha256 lines present before Intel support was added
+          content = re.sub(r'  url "https://.*?"\n  sha256 ".*?"\n', '', content)
+
+          # Remove existing on_arm/on_intel blocks (idempotent on re-runs)
+          content = re.sub(r'\n  on_arm do\n.*?  end\n', '\n', content, flags=re.DOTALL)
+          content = re.sub(r'\n  on_intel do\n.*?  end\n', '\n', content, flags=re.DOTALL)
+
+          arch_block = (
+              f'\n  on_arm do\n'
+              f'    url "{arm64_url}"\n'
+              f'    sha256 "{arm64_sha}"\n'
+              f'  end\n'
+              f'\n  on_intel do\n'
+              f'    url "{x86_64_url}"\n'
+              f'    sha256 "{x86_64_sha}"\n'
+              f'  end\n'
+          )
+          content = re.sub(r'(  license "Apache-2\.0"\n)', r'\1' + arch_block, content)
+
+          with open(formula, "w") as f:
+              f.write(content)
+
+          print(f"Updated {formula} to {full_version}")
+          print(f"  arm64:  {arm64_url}")
+          print(f"  x86_64: {x86_64_url}")
+          PYEOF
 
       - name: Commit formula update
         run: |
