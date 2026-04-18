@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+- Intel Mac (x86_64) support: `build-legion.yml` and `build-ruby.yml` now build `darwin-x86_64` tarballs alongside `darwin-arm64` on `macos-13` runners
+- `build-bottles.yml` adds `ventura` (Intel) to the bottle matrix alongside `arm64_sonoma` and `arm64_sequoia`
+- `update-formula` automation now writes `on_arm`/`on_intel` blocks with correct SHA256s for both architectures after each build, replacing the previous arm64-only flat `url`/`sha256` fields
+
 ### Fixed
 - TLS cert sync no longer writes freshness marker when zero certificates are imported
 - Split single `.legion-synced` marker into per-source markers (keychain, rubygems, github, legionio) with independent 30-day TTL

@@ -24,6 +24,9 @@ jobs:
           - os: macos-14
             arch: arm64
             suffix: darwin-arm64
+          - os: macos-13
+            arch: x86_64
+            suffix: darwin-x86_64
           - os: ubuntu-22.04
             arch: x86_64
             suffix: linux-x86_64
@@ -575,35 +578,74 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download tarball for SHA256
+      - name: Download darwin tarballs and compute SHA256
         run: |
-          TAG="ruby-${{ inputs.ruby_version }}-${{ inputs.package_revision }}"
-          TARBALL="legion-ruby-${{ inputs.ruby_version }}-${{ inputs.package_revision }}-darwin-arm64.tar.gz"
-          gh release download "$TAG" --pattern "$TARBALL"
-          SHA="$(shasum -a 256 "$TARBALL" | awk '{print $1}')"
-          echo "SHA256=$SHA" >> "$GITHUB_ENV"
-          echo "TARBALL=$TARBALL" >> "$GITHUB_ENV"
-          echo "TAG=$TAG" >> "$GITHUB_ENV"
-          echo "FULL_VERSION=${{ inputs.ruby_version }}-${{ inputs.package_revision }}" >> "$GITHUB_ENV"
+          RUBY_VERSION="${{ inputs.ruby_version }}"
+          PKG_REVISION="${{ inputs.package_revision }}"
+          TAG="ruby-${RUBY_VERSION}-${PKG_REVISION}"
+          FULL_VERSION="${RUBY_VERSION}-${PKG_REVISION}"
+          ARM64_TARBALL="legion-ruby-${FULL_VERSION}-darwin-arm64.tar.gz"
+          X86_64_TARBALL="legion-ruby-${FULL_VERSION}-darwin-x86_64.tar.gz"
+          ROOT_URL="https://github.com/LegionIO/homebrew-tap/releases/download/${TAG}"
+
+          gh release download "$TAG" --pattern "$ARM64_TARBALL" --clobber
+          gh release download "$TAG" --pattern "$X86_64_TARBALL" --clobber
+
+          ARM64_SHA="$(shasum -a 256 "$ARM64_TARBALL" | awk '{print $1}')"
+          X86_64_SHA="$(shasum -a 256 "$X86_64_TARBALL" | awk '{print $1}')"
+
+          echo "ARM64_SHA=${ARM64_SHA}"                       >> "$GITHUB_ENV"
+          echo "X86_64_SHA=${X86_64_SHA}"                     >> "$GITHUB_ENV"
+          echo "ARM64_URL=${ROOT_URL}/${ARM64_TARBALL}"       >> "$GITHUB_ENV"
+          echo "X86_64_URL=${ROOT_URL}/${X86_64_TARBALL}"     >> "$GITHUB_ENV"
+          echo "FULL_VERSION=${FULL_VERSION}"                 >> "$GITHUB_ENV"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update formula
         run: |
-          FORMULA="Formula/legionio-ruby.rb"
-          URL="https://github.com/LegionIO/homebrew-tap/releases/download/${TAG}/${TARBALL}"
+          python3 - << 'PYEOF'
+          import re, os
 
-          # Update url
-          sed -i '' "s|url \".*\"|url \"${URL}\"|" "$FORMULA"
+          formula      = "Formula/legionio-ruby.rb"
+          full_version = os.environ["FULL_VERSION"]
+          arm64_url    = os.environ["ARM64_URL"]
+          arm64_sha    = os.environ["ARM64_SHA"]
+          x86_64_url   = os.environ["X86_64_URL"]
+          x86_64_sha   = os.environ["X86_64_SHA"]
 
-          # Update sha256
-          sed -i '' "s|sha256 \".*\"|sha256 \"${SHA256}\"|" "$FORMULA"
+          with open(formula) as f:
+              content = f.read()
 
-          # Update version
-          sed -i '' "s|version \".*\"|version \"${FULL_VERSION}\"|" "$FORMULA"
+          # Update version field
+          content = re.sub(r'  version ".*?"', f'  version "{full_version}"', content)
 
-          echo "=== Updated formula ==="
-          head -8 "$FORMULA"
+          # Remove flat url/sha256 lines present before Intel support was added
+          content = re.sub(r'  url "https://.*?"\n  sha256 ".*?"\n', '', content)
+
+          # Remove existing on_arm/on_intel blocks (idempotent on re-runs)
+          content = re.sub(r'\n  on_arm do\n.*?  end\n', '\n', content, flags=re.DOTALL)
+          content = re.sub(r'\n  on_intel do\n.*?  end\n', '\n', content, flags=re.DOTALL)
+
+          arch_block = (
+              f'\n  on_arm do\n'
+              f'    url "{arm64_url}"\n'
+              f'    sha256 "{arm64_sha}"\n'
+              f'  end\n'
+              f'\n  on_intel do\n'
+              f'    url "{x86_64_url}"\n'
+              f'    sha256 "{x86_64_sha}"\n'
+              f'  end\n'
+          )
+          content = re.sub(r'(  license "Apache-2\.0"\n)', r'\1' + arch_block, content)
+
+          with open(formula, "w") as f:
+              f.write(content)
+
+          print(f"Updated {formula} to {full_version}")
+          print(f"  arm64:  {arm64_url}")
+          print(f"  x86_64: {x86_64_url}")
+          PYEOF
 
       - name: Commit formula update
         run: |

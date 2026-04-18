@@ -20,10 +20,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
-            tag: arm64_sonoma
           - os: macos-15
             tag: arm64_sequoia
+          - os: macos-14
+            tag: arm64_sonoma
+          - os: macos-13
+            tag: ventura
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -108,7 +110,7 @@ jobs:
 
           gh release create "$TAG" release_assets/*.tar.gz \
             --title "Bottles for legionio $VERSION" \
-            --notes "Prebuilt Homebrew bottles for legionio $VERSION (ARM64 Sonoma + Sequoia)"
+            --notes "Prebuilt Homebrew bottles for legionio $VERSION (Intel Ventura, ARM64 Sonoma + Sequoia)"
 
       - name: Update formula with bottle hashes
         env:
