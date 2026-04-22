@@ -561,12 +561,12 @@ jobs:
 
           # Both matrix jobs share the same tag — first to finish creates the release,
           # second uploads its tarball to the existing release
-          if ! gh release create "$TAG" \
+          if ! gh release create "$TAG" --repo "${{ github.repository }}" \
             --title "Legion Ruby ${FULL_VERSION}" \
             --notes "Pre-compiled Ruby ${RUBY_VERSION} (package revision ${PKG_REVISION}) for Legion. Includes YJIT and native extension gems only (pg, mysql2, sqlite3, oj, puma, bootsnap). Legion/LEX gems are installed separately via the legionio and legion-tty formulas." \
             "$TARBALL" 2>/dev/null; then
             echo "Release $TAG already exists, uploading tarball"
-            gh release upload "$TAG" "$TARBALL" --clobber
+            gh release upload "$TAG" --repo "${{ github.repository }}" "$TARBALL" --clobber
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -588,8 +588,8 @@ jobs:
           X86_64_TARBALL="legion-ruby-${FULL_VERSION}-darwin-x86_64.tar.gz"
           ROOT_URL="https://github.com/LegionIO/homebrew-tap/releases/download/${TAG}"
 
-          gh release download "$TAG" --pattern "$ARM64_TARBALL" --clobber
-          gh release download "$TAG" --pattern "$X86_64_TARBALL" --clobber
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "$ARM64_TARBALL" --clobber
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "$X86_64_TARBALL" --clobber
 
           ARM64_SHA="$(shasum -a 256 "$ARM64_TARBALL" | awk '{print $1}')"
           X86_64_SHA="$(shasum -a 256 "$X86_64_TARBALL" | awk '{print $1}')"

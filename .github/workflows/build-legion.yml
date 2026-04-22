@@ -63,7 +63,7 @@ jobs:
       - name: Compute version tag (auto-increment revision)
         id: version
         run: |
-          LATEST=$(gh release list --limit 100 --json tagName --jq \
+          LATEST=$(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName --jq \
             '[.[] | select(.tagName | startswith("legion-'"${GEM_VERSION}"'-")) | .tagName | ltrimstr("legion-'"${GEM_VERSION}"'-") | tonumber] | max // 0')
           NEXT=$(( LATEST + 1 ))
           if [ "${PKG_REVISION}" -gt "${NEXT}" ] 2>/dev/null; then
@@ -541,14 +541,14 @@ jobs:
           # Capture stderr so "already exists" is handled gracefully without
           # silencing auth failures or network errors.
           GH_ERR="$(mktemp)"
-          if gh release create "$LEGION_TAG" \
+          if gh release create "$LEGION_TAG" --repo "${{ github.repository }}" \
             --title "Legion ${LEGION_FULL_VERSION}" \
             --notes "Legion ${GEM_VERSION} with Ruby ${RUBY_VERSION} (revision ${LEGION_PKG_REVISION}). Self-contained: Ruby + YJIT + all native gems + all Legion/LEX gems + legion-tty. Includes darwin-arm64 and darwin-x86_64." \
             "$TARBALL" 2>"$GH_ERR"; then
             echo "Created release ${LEGION_TAG}"
           elif grep -qi "already exists" "$GH_ERR"; then
             echo "Release ${LEGION_TAG} already exists — uploading ${TARBALL}"
-            gh release upload "$LEGION_TAG" "$TARBALL" --clobber
+            gh release upload "$LEGION_TAG" --repo "${{ github.repository }}" "$TARBALL" --clobber
           else
             cat "$GH_ERR" >&2
             rm -f "$GH_ERR"
@@ -581,7 +581,7 @@ jobs:
           # If a build leg was skipped or failed, this gives a clear error rather
           # than a confusing "asset not found" from gh release download.
           echo "Verifying release assets for ${TAG}..."
-          RELEASE_ASSETS="$(gh release view "$TAG" --json assets --jq '[.assets[].name]')"
+          RELEASE_ASSETS="$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets --jq '[.assets[].name]')"
           for TARBALL in "$ARM64_TARBALL" "$X86_64_TARBALL"; do
             if ! echo "$RELEASE_ASSETS" | jq -e --arg t "$TARBALL" 'index($t) != null' > /dev/null; then
               echo "::error::Expected release asset not found: ${TARBALL}"
@@ -590,8 +590,8 @@ jobs:
             fi
           done
 
-          gh release download "$TAG" --pattern "$ARM64_TARBALL" --clobber
-          gh release download "$TAG" --pattern "$X86_64_TARBALL" --clobber
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "$ARM64_TARBALL" --clobber
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "$X86_64_TARBALL" --clobber
 
           ARM64_SHA="$(shasum -a 256 "$ARM64_TARBALL" | awk '{print $1}')"
           X86_64_SHA="$(shasum -a 256 "$X86_64_TARBALL" | awk '{print $1}')"

@@ -38,10 +38,10 @@ jobs:
 
       - name: Download legionio-ruby tarball
         run: |
-          LATEST_TAG="$(gh release list --limit 50 --json tagName --jq '[.[] | select(.tagName | startswith("ruby-"))][0].tagName')"
-          LATEST_TARBALL="$(gh release view "$LATEST_TAG" --json assets --jq '.assets[0].name')"
+          LATEST_TAG="$(gh release list --repo "${{ github.repository }}" --limit 50 --json tagName --jq '[.[] | select(.tagName | startswith("ruby-"))][0].tagName')"
+          LATEST_TARBALL="$(gh release view "$LATEST_TAG" --repo "${{ github.repository }}" --json assets --jq '.assets[0].name')"
           echo "Downloading ruby: $LATEST_TAG / $LATEST_TARBALL"
-          gh release download "$LATEST_TAG" --pattern "$LATEST_TARBALL" --clobber
+          gh release download "$LATEST_TAG" --repo "${{ github.repository }}" --pattern "$LATEST_TARBALL" --clobber
           mkdir -p legion-ruby
           tar xzf "$LATEST_TARBALL" --strip-components=1 -C legion-ruby
         env:
@@ -49,10 +49,10 @@ jobs:
 
       - name: Download legionio daemon tarball
         run: |
-          LATEST_TAG="$(gh release list --limit 50 --json tagName --jq '[.[] | select(.tagName | startswith("legionio-"))][0].tagName')"
-          LATEST_TARBALL="$(gh release view "$LATEST_TAG" --json assets --jq '.assets[0].name')"
+          LATEST_TAG="$(gh release list --repo "${{ github.repository }}" --limit 50 --json tagName --jq '[.[] | select(.tagName | startswith("legionio-"))][0].tagName')"
+          LATEST_TARBALL="$(gh release view "$LATEST_TAG" --repo "${{ github.repository }}" --json assets --jq '.assets[0].name')"
           echo "Downloading daemon: $LATEST_TAG / $LATEST_TARBALL"
-          gh release download "$LATEST_TAG" --pattern "$LATEST_TARBALL" --clobber
+          gh release download "$LATEST_TAG" --repo "${{ github.repository }}" --pattern "$LATEST_TARBALL" --clobber
           mkdir -p daemon-gems
           tar xzf "$LATEST_TARBALL" --strip-components=1 -C daemon-gems
         env:
@@ -91,7 +91,7 @@ jobs:
           TAG="${{ steps.version.outputs.tag }}"
           TARBALL="${{ steps.version.outputs.tarball }}"
           FULL_VERSION="${{ steps.version.outputs.full_version }}"
-          gh release create "$TAG" \
+          gh release create "$TAG" --repo "${{ github.repository }}" \
             --title "Legion TTY Gems ${FULL_VERSION}" \
             --notes "Pure-Ruby TTY and interactive shell gems for Legion TTY ${GEM_VERSION} (revision ${PKG_REVISION})." \
             "$TARBALL"
@@ -109,7 +109,7 @@ jobs:
         run: |
           TAG="legion-tty-${GEM_VERSION}-${PKG_REVISION}"
           TARBALL="legion-tty-gems-${GEM_VERSION}-${PKG_REVISION}.tar.gz"
-          gh release download "$TAG" --pattern "$TARBALL" --clobber
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "$TARBALL" --clobber
           SHA="$(shasum -a 256 "$TARBALL" | awk '{print $1}')"
           echo "SHA256=$SHA" >> "$GITHUB_ENV"
           echo "TARBALL=$TARBALL" >> "$GITHUB_ENV"

@@ -105,10 +105,10 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           # Delete existing release with this tag if present
-          gh release delete "$TAG" --yes 2>/dev/null || true
+          gh release delete "$TAG" --repo "${{ github.repository }}" --yes 2>/dev/null || true
           git push origin :"$TAG" 2>/dev/null || true
 
-          gh release create "$TAG" release_assets/*.tar.gz \
+          gh release create "$TAG" --repo "${{ github.repository }}" release_assets/*.tar.gz \
             --title "Bottles for legionio $VERSION" \
             --notes "Prebuilt Homebrew bottles for legionio $VERSION (Intel macOS 15, ARM64 Sonoma + Sequoia)"
 
