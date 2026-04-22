@@ -1,4 +1,4 @@
-class LegionDev < Formula
+class LegionioDev < Formula
   desc "Full LegionIO development environment with all services"
   homepage "https://github.com/LegionIO/LegionIO"
   url "https://github.com/LegionIO/homebrew-tap/releases/download/ruby-3.4.8/legion-ruby-3.4.8-darwin-arm64.tar.gz"

@@ -393,16 +393,25 @@ jobs:
       - name: Patch gssapi loader for vendored krb5
         if: steps.ruby-cache.outputs.cache-hit != 'true'
         run: |
-          echo "=== Patching gssapi gem to load krb5 by name (respects DYLD_FALLBACK_LIBRARY_PATH) ==="
+          echo "=== Patching gssapi gem to load vendored krb5 (not system Heimdal) ==="
           LOADER="$(find "$GITHUB_WORKSPACE/legion-ruby" -path '*/gssapi-*/lib/gssapi/lib_gssapi_loader.rb' | head -1)"
           if [ -n "$LOADER" ]; then
             echo "Found loader: $LOADER"
-            # Replace any absolute path to libgssapi_krb5.dylib with just the bare name.
-            # This covers both the original (/usr/lib/) and any brew --prefix patch.
-            sed -i '' "s|gssapi_lib = '/usr/lib/libgssapi_krb5.dylib'|gssapi_lib = 'libgssapi_krb5.dylib'|" "$LOADER"
-            # Also handle the brew --prefix patched version from build-ruby.yml
+            VENDORED_LIB="$GITHUB_WORKSPACE/legion-ruby/libexec/libgssapi_krb5.dylib"
+            if [ ! -f "$VENDORED_LIB" ]; then
+              # Fall back to Homebrew krb5 path
+              VENDORED_LIB="$(brew --prefix krb5)/lib/libgssapi_krb5.dylib"
+            fi
+            echo "Using vendored library: $VENDORED_LIB"
+            # Replace ALL gssapi_lib assignments with the vendored absolute path.
+            # This prevents the dynamic linker from finding /usr/lib/libgssapi_krb5.dylib
+            # (macOS system Heimdal) on both arm64 and x86_64.
+            sed -i '' "s|gssapi_lib = '/usr/lib/libgssapi_krb5.dylib'|gssapi_lib = '$VENDORED_LIB'|" "$LOADER"
+            sed -i '' "s|gssapi_lib = 'libgssapi_krb5.dylib'|gssapi_lib = '$VENDORED_LIB'|" "$LOADER"
             sed -i '' '/brew_lib.*brew --prefix krb5/c\
-            gssapi_lib = '"'"'libgssapi_krb5.dylib'"'"'' "$LOADER"
+            gssapi_lib = '"'"''"$VENDORED_LIB"''"'"'' "$LOADER"
+            # Nuclear option: replace any remaining line that assigns gssapi_lib to a path containing /usr/lib
+            sed -i '' "s|gssapi_lib = .*libgssapi_krb5.*|gssapi_lib = '$VENDORED_LIB'|" "$LOADER"
             echo "Patched loader contents:"
             grep -n 'gssapi_lib' "$LOADER"
           else

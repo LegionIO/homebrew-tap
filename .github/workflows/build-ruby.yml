@@ -186,11 +186,16 @@ jobs:
           done || true
           echo "=== Strip complete ==="
 
-          echo "=== Patching gssapi gem to load krb5 by name (respects DYLD_FALLBACK_LIBRARY_PATH) ==="
+          echo "=== Patching gssapi gem to load vendored krb5 (not system Heimdal) ==="
           if [ "$(uname)" = "Darwin" ]; then
             LOADER="$(find "$GITHUB_WORKSPACE/legion-ruby" -path '*/gssapi-*/lib/gssapi/lib_gssapi_loader.rb' | head -1)"
             if [ -n "$LOADER" ]; then
-              sed -i '' "s|gssapi_lib = '/usr/lib/libgssapi_krb5.dylib'|gssapi_lib = 'libgssapi_krb5.dylib'|" "$LOADER"
+              VENDORED_LIB="$GITHUB_WORKSPACE/legion-ruby/libexec/libgssapi_krb5.dylib"
+              if [ ! -f "$VENDORED_LIB" ]; then
+                VENDORED_LIB="$(brew --prefix krb5)/lib/libgssapi_krb5.dylib"
+              fi
+              echo "  Using vendored library: $VENDORED_LIB"
+              sed -i '' "s|gssapi_lib = .*libgssapi_krb5.*|gssapi_lib = '$VENDORED_LIB'|" "$LOADER"
               echo "  Patched: $LOADER"
               grep -n 'gssapi_lib' "$LOADER" || true
             else
