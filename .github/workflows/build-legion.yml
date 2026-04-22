@@ -391,7 +391,6 @@ jobs:
           echo "All native binaries signed"
 
       - name: Patch gssapi loader for vendored krb5
-        if: steps.ruby-cache.outputs.cache-hit != 'true'
         run: |
           echo "=== Patching gssapi gem to load vendored krb5 (not system Heimdal) ==="
           LOADER="$(find "$GITHUB_WORKSPACE/legion-ruby" -path '*/gssapi-*/lib/gssapi/lib_gssapi_loader.rb' | head -1)"
