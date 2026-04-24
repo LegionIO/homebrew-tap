@@ -79,10 +79,10 @@ jobs:
           gem install legion-data legion-transport legion-cache \
             legion-crypt legion-settings legion-llm legion-gaia legion-mcp \
             legion-rbac legion-json legion-logging legion-tty \
-            lex-synapse lex-node lex-llm-gateway lex-metering lex-detect \
+            lex-synapse lex-node lex-metering lex-detect \
             lex-http lex-tasker lex-conditioner lex-transformer lex-scheduler \
             lex-lex lex-health lex-exec lex-codegen lex-telemetry lex-audit \
-            lex-privatecore lex-tick lex-kerberos \
+            lex-privatecore lex-tick lex-kerberos lex-apollo lex-github \
             prism \
             --no-document
 

@@ -240,7 +240,7 @@ class Legionio < Formula
 
   PYTHON_PACKAGES = %w[
     python-pptx python-docx openpyxl pandas pillow
-    requests lxml PyYAML tabulate markdown
+    requests lxml PyYAML tabulate markdown PyMuPDF
   ].freeze
 
   def setup_python_venv
