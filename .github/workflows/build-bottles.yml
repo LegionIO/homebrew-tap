@@ -157,7 +157,7 @@ jobs:
 
           gh release create "$TAG" --repo "${{ github.repository }}" release_assets/*.tar.gz \
             --title "Bottles for legionio $VERSION" \
-            --notes "Prebuilt Homebrew bottles for legionio $VERSION (Intel macOS 15, ARM64 Sonoma + Sequoia)"
+            --notes "Prebuilt Homebrew bottles for legionio $VERSION (Intel macOS 15, ARM64 Sonoma + Sequoia, x86_64 Linux)"
 
       - name: Update formula with bottle hashes
         env:

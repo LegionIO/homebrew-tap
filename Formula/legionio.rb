@@ -13,39 +13,6 @@ class Legionio < Formula
     url "https://github.com/LegionIO/homebrew-tap/releases/download/legion-1.9.36-1/legion-1.9.36-1-darwin-x86_64.tar.gz"
     sha256 "b25bf8b04a77d44bd58a2f9658bbd07d4a7c699d44017ffa2c431e6d26272c10"
   end
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   bottle do
     root_url "https://github.com/LegionIO/homebrew-tap/releases/download/bottles-legionio-1.9.36-1"
     sha256 cellar: :any, arm64_sequoia: "86bb42aed6b9b15a3f9d03fb0aa4a9642aa1df7dc31281e73e0872be463f7cde"
@@ -122,6 +89,12 @@ class Legionio < Formula
       export GEM_SPEC_CACHE="#{gem_dir}/spec_cache"
       export LEGION_PYTHON_VENV="#{libexec}/python"
       export LEGION_PYTHON="#{libexec}/python/bin/python3"
+      export SSL_CERT_FILE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export REQUESTS_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export CURL_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export PYTHONPATH=""
+      export PIP_CERT="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      unset PYTHONHOME
       exec "#{libexec}/bin/ruby" "#{libexec}/bin/legionio" "$@"
     BASH
     (bin/"legionio").chmod 0755
@@ -140,6 +113,12 @@ class Legionio < Formula
       export GEM_SPEC_CACHE="#{gem_dir}/spec_cache"
       export LEGION_PYTHON_VENV="#{libexec}/python"
       export LEGION_PYTHON="#{libexec}/python/bin/python3"
+      export SSL_CERT_FILE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export REQUESTS_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export CURL_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export PYTHONPATH=""
+      export PIP_CERT="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      unset PYTHONHOME
       exec "#{libexec}/bin/ruby" "#{libexec}/bin/legion" "$@"
     BASH
     (bin/"legion").chmod 0755
@@ -164,7 +143,13 @@ class Legionio < Formula
     # Python venv helpers — use the Legion-managed venv interpreter/pip
     (bin/"legion-python").write <<~BASH
       #!/bin/bash
-      VENV="${LEGION_PYTHON_VENV:-${HOME}/.legionio/python}"
+      export SSL_CERT_FILE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export REQUESTS_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export CURL_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export PYTHONPATH=""
+      export PIP_CERT="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      unset PYTHONHOME
+      VENV="${LEGION_PYTHON_VENV:-#{libexec}/python}"
       if [ -x "${VENV}/bin/python3" ]; then
         exec "${VENV}/bin/python3" "$@"
       else
@@ -176,7 +161,13 @@ class Legionio < Formula
 
     (bin/"legion-pip").write <<~BASH
       #!/bin/bash
-      VENV="${LEGION_PYTHON_VENV:-${HOME}/.legionio/python}"
+      export SSL_CERT_FILE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export REQUESTS_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export CURL_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export PYTHONPATH=""
+      export PIP_CERT="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      unset PYTHONHOME
+      VENV="${LEGION_PYTHON_VENV:-#{libexec}/python}"
       if [ -x "${VENV}/bin/pip3" ]; then
         exec "${VENV}/bin/pip3" "$@"
       else
@@ -195,12 +186,24 @@ class Legionio < Formula
   end
 
   service do
-    run [opt_bin/"legionio", "start", "--log-level", "info"]
+    run [libexec/"bin/ruby", libexec/"bin/legionio", "start", "--log-level", "info"]
     keep_alive true
     working_dir var/"lib/legion"
     log_path var/"log/legion/legion.log"
     error_log_path var/"log/legion/legion.log"
-    environment_variables LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8"
+    environment_variables LANG:              "en_US.UTF-8",
+                          LC_ALL:            "en_US.UTF-8",
+                          GEM_PATH:          "#{libexec}/lib/ruby/gems/3.4.0",
+                          GEM_HOME:          "#{libexec}/lib/ruby/gems/3.4.0",
+                          GEM_SPEC_CACHE:    "#{libexec}/lib/ruby/gems/3.4.0/spec_cache",
+                          RUBYGEMS_GEMDEPS:  "",
+                          BUNDLE_GEMFILE:    "",
+                          RUBYOPT:           "",
+                          LEGION_PYTHON_VENV: "#{libexec}/python",
+                          LEGION_PYTHON:     "#{libexec}/python/bin/python3",
+                          SSL_CERT_FILE:     "#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem",
+                          REQUESTS_CA_BUNDLE: "#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem",
+                          CURL_CA_BUNDLE:    "#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
   end
 
   def post_install
@@ -242,7 +245,13 @@ class Legionio < Formula
       Logs:    #{var}/log/legion/legion.log
       Data:    #{var}/lib/legion/
 
-      Start as background service:
+      Start as background service (recommended on macOS 15+):
+        legionio service start           # handles launchd quirks automatically
+        legionio service stop
+        legionio service restart
+        legionio service status
+
+      Alternative (may require manual kickstart on macOS 26+):
         brew services start legionio
 
       Start Redis (required for tracing and dream cycle):
@@ -268,6 +277,7 @@ class Legionio < Formula
   PYTHON_PACKAGES = %w[
     python-pptx python-docx openpyxl pandas pillow
     requests lxml PyYAML tabulate markdown PyMuPDF
+    ruff pylint mypy httpx beautifulsoup4 jinja2
   ].freeze
 
   def setup_python_venv
