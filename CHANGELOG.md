@@ -3,6 +3,17 @@
 ## [Unreleased]
 
 ### Added
+- TLS cert environment isolation: all wrappers (`legionio`, `legion`, `legion-python`, `legion-pip`) and launchd service now force `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, `CURL_CA_BUNDLE`, and `PIP_CERT` to brew's OpenSSL cert chain
+- Python environment isolation: clear `PYTHONPATH` and unset `PYTHONHOME` in all wrappers to prevent user env pollution
+- Default Python packages expanded: `ruff`, `pylint`, `mypy`, `httpx`, `beautifulsoup4`, `jinja2`
+
+### Fixed
+- `legion-python` and `legion-pip` default venv path changed from `$HOME/.legionio/python` to `libexec/python` (matches actual Cellar install location)
+- `pip install` failures caused by corporate `REQUESTS_CA_BUNDLE` pointing at non-existent `/tmp/system-ca-bundle.pem`
+
+### Added
+- Linux x86_64 support for the Legion formula build and bottle workflows
+- Formula generation now writes explicit `on_macos` and `on_linux` platform blocks so Linuxbrew does not select Darwin Intel tarballs
 - Intel Mac (x86_64) support: `build-legion.yml` and `build-ruby.yml` now build `darwin-x86_64` tarballs alongside `darwin-arm64` on `macos-13` runners
 - `build-bottles.yml` adds `ventura` (Intel) to the bottle matrix alongside `arm64_sonoma` and `arm64_sequoia`
 - `update-formula` automation now writes `on_arm`/`on_intel` blocks with correct SHA256s for both architectures after each build, replacing the previous arm64-only flat `url`/`sha256` fields
