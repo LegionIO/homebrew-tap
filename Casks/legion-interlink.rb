@@ -1,8 +1,8 @@
 cask "legion-interlink" do
-  version "2.2.6"
-  sha256 "f6a4c22c951c8f76d43c3bbe20d830195d90c195d52c9d79876be77b6ffb8554"
+  version "2.2.7"
+  sha256 "0c501c3ebf1d84c288611fc4e4397ad95e01d8c71983b69327c97f7183bd9f72"
 
-  url "https://github.com/LegionIO/legion-interlink/releases/download/v#{version}/Legion-Interlink-2.2.6-universal.dmg"
+  url "https://github.com/LegionIO/legion-interlink/releases/download/v#{version}/Legion-Interlink-2.2.7-universal.dmg"
   name "Legion Interlink"
   desc "LegionIO menu bar manager — bootstrap, monitor, and control the Legion stack"
   homepage "https://github.com/LegionIO/legion-interlink"
