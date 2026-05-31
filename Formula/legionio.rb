@@ -22,10 +22,10 @@ class Legionio < Formula
 
 
   bottle do
-    root_url "https://github.com/LegionIO/homebrew-tap/releases/download/bottles-legionio-1.9.38-1"
-    sha256 cellar: :any, arm64_sequoia: "85ce62a3ed71e36c8cee13c3f28a604a57a115b0f116f03a5acaa622005ab6b0"
-    sha256 cellar: :any, arm64_sonoma: "80fe8df6326d888c84cbbb63f90b7c7e7848cdf8a1657d4276646f3c7fbe7950"
-    sha256 cellar: :any, sequoia: "31ee91c8d92efaffb4bdc9ec46d0f7678851d5a41b5f3f9e9ae72407a8e5e13b"
+    root_url "https://github.com/LegionIO/homebrew-tap/releases/download/bottles-legionio-1.9.39-1"
+    sha256 cellar: :any, arm64_sequoia: "26376fbf5a6c1128d32a2acddf5c3e99449b0d4d8e5d41a15825e38a18f8c492"
+    sha256 cellar: :any, arm64_sonoma: "e5c0cc95f1bf8119b73f9e363f3de1e61df6ec1b40bbbc2dd485a1741e8dd86e"
+    sha256 cellar: :any, sequoia: "129d2da8c266c869baa4a4eedbc965c2cb3ba9f26757e8aa2ebc52a6d4b794ca"
   end
 
   depends_on "krb5"
