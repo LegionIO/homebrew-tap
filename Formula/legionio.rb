@@ -221,8 +221,8 @@ class Legionio < Formula
                           CURL_CA_BUNDLE:     "#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
   end
 
-  # Homebrew's sandbox overrides $HOME during post_install, so File.expand_path("~")
-  # resolves to a temp directory.  Use Etc.getpwnam.dir to always get the real home.
+  # Homebrew sandbox overrides $HOME during post_install.  Use Etc.getpwnam.dir
+  # to always resolve the real user home regardless of sandbox.
   def user_home
     require "etc"
     Etc.getpwnam.dir
