@@ -1,18 +1,20 @@
 class Legionio < Formula
   desc "LegionIO async job engine, agentic AI daemon, and interactive shell"
   homepage "https://github.com/LegionIO/LegionIO"
-  version "1.9.39-4"
+  version "1.9.39-5"
   license "Apache-2.0"
 
   on_arm do
-    url "https://github.com/LegionIO/homebrew-tap/releases/download/legion-1.9.39-4/legion-1.9.39-4-darwin-arm64.tar.gz"
-    sha256 "25cee0a35ad7426b7544119c38be5c3c5f7016db1b064a7425e7891c20dba905"
+    url "https://github.com/LegionIO/homebrew-tap/releases/download/legion-1.9.39-5/legion-1.9.39-5-darwin-arm64.tar.gz"
+    sha256 "ed00aa571f6a780f3b8b7a28e2cca75574a478a9309cc7774814e87ddaaa9ae4"
   end
 
   on_intel do
-    url "https://github.com/LegionIO/homebrew-tap/releases/download/legion-1.9.39-4/legion-1.9.39-4-darwin-x86_64.tar.gz"
-    sha256 "edb36e72a5c854c1cef95cd12a6c726a17d78173cf1ed569478640433cd15890"
+    url "https://github.com/LegionIO/homebrew-tap/releases/download/legion-1.9.39-5/legion-1.9.39-5-darwin-x86_64.tar.gz"
+    sha256 "eabc3412f48856383b17628449458009c502d353275bea7b03fd081f4f3deef3"
   end
+
+
 
 
 
@@ -28,10 +30,10 @@ class Legionio < Formula
 
 
   bottle do
-    root_url "https://github.com/LegionIO/homebrew-tap/releases/download/bottles-legionio-1.9.39-4"
-    sha256 cellar: :any, arm64_sequoia: "cfbbab58bc6bf84a8c422b0d27ea9b23d55300327a63fbd8b608841c8803ac57"
-    sha256 cellar: :any, arm64_sonoma: "fa13144afe07eac27393425f2cc67320c530173dec9a33f6d55c764d59f2482b"
-    sha256 cellar: :any, sequoia: "e39525167f84166276cb2df205cfa78dde7cd9750df8e1a255774d6b74afe607"
+    root_url "https://github.com/LegionIO/homebrew-tap/releases/download/bottles-legionio-1.9.39-5"
+    sha256 cellar: :any, arm64_sequoia: "7938e200768c6ce67bee8c0dd48ae6ac0c42ea3a2832b3b82d849dc0ca63cb17"
+    sha256 cellar: :any, arm64_sonoma: "343700da056e137b3ab5040541b6e93832710b1cd3cb5612fa221c60c9edffaa"
+    sha256 cellar: :any, sequoia: "229c4c6ca441ae424830fa666e2bd97806daee512a5069647df7bdc6fabe53a4"
   end
 
   depends_on "krb5"
@@ -219,6 +221,13 @@ class Legionio < Formula
                           CURL_CA_BUNDLE:     "#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
   end
 
+  # Homebrew's sandbox overrides $HOME during post_install, so File.expand_path("~")
+  # resolves to a temp directory.  Use Etc.getpwnam.dir to always get the real home.
+  def user_home
+    require "etc"
+    Etc.getpwnam.dir
+  end
+
   def post_install
     (var/"lib/legion").mkpath
     Dir.chdir(var/"lib/legion")
@@ -302,7 +311,7 @@ class Legionio < Formula
       return
     end
 
-    venv_dir = Pathname.new(File.expand_path("~/.legionio/python"))
+    venv_dir = Pathname.new(File.join(user_home, ".legionio", "python"))
     if venv_dir.exist?
       ohai "Legion Python venv already exists at #{venv_dir}"
     else
@@ -360,13 +369,13 @@ class Legionio < Formula
     packs = Set.new
 
     # Source 1: marker files from prior `legionio setup <pack>`
-    packs_dir = File.expand_path("~/.legionio/.packs")
+    packs_dir = File.join(user_home, ".legionio", ".packs")
     if File.directory?(packs_dir)
       Dir.children(packs_dir).each { |p| packs << p }
     end
 
     # Source 2: settings file (user-configurable)
-    settings_file = File.expand_path("~/.legionio/settings/packs.json")
+    settings_file = File.join(user_home, ".legionio", "settings", "packs.json")
     if File.exist?(settings_file)
       data = JSON.parse(File.read(settings_file)) rescue {}
       Array(data["packs"]).each { |p| packs << p.to_s }
@@ -419,7 +428,7 @@ class Legionio < Formula
         # This picks up corporate CAs (Zscaler, MDM, etc.) and system root CAs
         # so our bundled Ruby/OpenSSL trusts the same hosts as the rest of macOS.
         # The login keychain is where JAMF/corporate provisioning drops internal CAs.
-        login_keychain = File.expand_path("~/Library/Keychains/login.keychain-db")
+        login_keychain = File.join(user_home, "Library", "Keychains", "login.keychain-db")
         keychains = %w[/Library/Keychains/System.keychain
                        /System/Library/Keychains/SystemRootCertificates.keychain]
         keychains << login_keychain
