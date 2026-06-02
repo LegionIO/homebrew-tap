@@ -106,8 +106,8 @@ class Legionio < Formula
       export BUNDLE_GEMFILE=""
       export RUBYOPT=""
       export GEM_SPEC_CACHE="#{gem_dir}/spec_cache"
-      export LEGION_PYTHON_VENV="${HOME}/.legionio/python"
-      export LEGION_PYTHON="${HOME}/.legionio/python/bin/python3"
+      export LEGION_PYTHON_VENV="#{libexec}/python"
+      export LEGION_PYTHON="#{libexec}/python/bin/python3"
       export SSL_CERT_FILE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
       export REQUESTS_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
       export CURL_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
@@ -130,8 +130,8 @@ class Legionio < Formula
       export BUNDLE_GEMFILE=""
       export RUBYOPT=""
       export GEM_SPEC_CACHE="#{gem_dir}/spec_cache"
-      export LEGION_PYTHON_VENV="${HOME}/.legionio/python"
-      export LEGION_PYTHON="${HOME}/.legionio/python/bin/python3"
+      export LEGION_PYTHON_VENV="#{libexec}/python"
+      export LEGION_PYTHON="#{libexec}/python/bin/python3"
       export SSL_CERT_FILE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
       export REQUESTS_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
       export CURL_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
@@ -168,7 +168,7 @@ class Legionio < Formula
       export PYTHONPATH=""
       export PIP_CERT="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
       unset PYTHONHOME
-      VENV="${LEGION_PYTHON_VENV:-${HOME}/.legionio/python}"
+      VENV="${LEGION_PYTHON_VENV:-#{libexec}/python}"
       if [ -x "${VENV}/bin/python3" ]; then
         exec "${VENV}/bin/python3" "$@"
       else
@@ -186,7 +186,7 @@ class Legionio < Formula
       export PYTHONPATH=""
       export PIP_CERT="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
       unset PYTHONHOME
-      VENV="${LEGION_PYTHON_VENV:-${HOME}/.legionio/python}"
+      VENV="${LEGION_PYTHON_VENV:-#{libexec}/python}"
       if [ -x "${VENV}/bin/pip3" ]; then
         exec "${VENV}/bin/pip3" "$@"
       else
@@ -313,7 +313,7 @@ class Legionio < Formula
       return
     end
 
-    venv_dir = Pathname.new(File.join(user_home, ".legionio", "python"))
+    venv_dir = libexec/"python"
     if venv_dir.exist?
       ohai "Legion Python venv already exists at #{venv_dir}"
     else
