@@ -94,9 +94,6 @@ jobs:
           - os: macos-14
             arch: arm64
             suffix: darwin-arm64
-          - os: macos-15-intel
-            arch: x86_64
-            suffix: darwin-x86_64
 
     runs-on: ${{ matrix.os }}
 
@@ -404,7 +401,7 @@ jobs:
             echo "Using vendored library: $VENDORED_LIB"
             # Replace ALL gssapi_lib assignments with the vendored absolute path.
             # This prevents the dynamic linker from finding /usr/lib/libgssapi_krb5.dylib
-            # (macOS system Heimdal) on both arm64 and x86_64.
+            # (macOS system Heimdal) on arm64.
             sed -i '' "s|gssapi_lib = '/usr/lib/libgssapi_krb5.dylib'|gssapi_lib = '$VENDORED_LIB'|" "$LOADER"
             sed -i '' "s|gssapi_lib = 'libgssapi_krb5.dylib'|gssapi_lib = '$VENDORED_LIB'|" "$LOADER"
             sed -i '' '/brew_lib.*brew --prefix krb5/c\
@@ -551,7 +548,7 @@ jobs:
           GH_ERR="$(mktemp)"
           if gh release create "$LEGION_TAG" --repo "${{ github.repository }}" \
             --title "Legion ${LEGION_FULL_VERSION}" \
-            --notes "Legion ${GEM_VERSION} with Ruby ${RUBY_VERSION} (revision ${LEGION_PKG_REVISION}). Self-contained: Ruby + YJIT + all native gems + all Legion/LEX gems + legion-tty. Includes darwin-arm64 and darwin-x86_64." \
+            --notes "Legion ${GEM_VERSION} with Ruby ${RUBY_VERSION} (revision ${LEGION_PKG_REVISION}). Self-contained: Ruby + YJIT + all native gems + all Legion/LEX gems + legion-tty. Includes darwin-arm64." \
             "$TARBALL" 2>"$GH_ERR"; then
             echo "Created release ${LEGION_TAG}"
           elif grep -qi "already exists" "$GH_ERR"; then
@@ -577,38 +574,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download tarballs and compute SHA256
+      - name: Download tarball and compute SHA256
         run: |
           TAG="${{ needs.compute-version.outputs.tag }}"
           FULL_VERSION="${{ needs.compute-version.outputs.full_version }}"
           ARM64_TARBALL="legion-${FULL_VERSION}-darwin-arm64.tar.gz"
-          X86_64_TARBALL="legion-${FULL_VERSION}-darwin-x86_64.tar.gz"
           ROOT_URL="https://github.com/LegionIO/homebrew-tap/releases/download/${TAG}"
 
-          # Verify both arch tarballs are present before attempting download.
-          # If a build leg was skipped or failed, this gives a clear error rather
-          # than a confusing "asset not found" from gh release download.
-          echo "Verifying release assets for ${TAG}..."
-          RELEASE_ASSETS="$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets --jq '[.assets[].name]')"
-          for TARBALL in "$ARM64_TARBALL" "$X86_64_TARBALL"; do
-            if ! echo "$RELEASE_ASSETS" | jq -e --arg t "$TARBALL" 'index($t) != null' > /dev/null; then
-              echo "::error::Expected release asset not found: ${TARBALL}"
-              echo "Available assets: ${RELEASE_ASSETS}"
-              exit 1
-            fi
-          done
-
           gh release download "$TAG" --repo "${{ github.repository }}" --pattern "$ARM64_TARBALL" --clobber
-          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "$X86_64_TARBALL" --clobber
 
           ARM64_SHA="$(shasum -a 256 "$ARM64_TARBALL" | awk '{print $1}')"
-          X86_64_SHA="$(shasum -a 256 "$X86_64_TARBALL" | awk '{print $1}')"
 
-          echo "ARM64_SHA=${ARM64_SHA}"                         >> "$GITHUB_ENV"
-          echo "X86_64_SHA=${X86_64_SHA}"                       >> "$GITHUB_ENV"
-          echo "ARM64_URL=${ROOT_URL}/${ARM64_TARBALL}"         >> "$GITHUB_ENV"
-          echo "X86_64_URL=${ROOT_URL}/${X86_64_TARBALL}"       >> "$GITHUB_ENV"
-          echo "FULL_VERSION=${FULL_VERSION}"                   >> "$GITHUB_ENV"
+          echo "ARM64_SHA=${ARM64_SHA}"               >> "$GITHUB_ENV"
+          echo "ARM64_URL=${ROOT_URL}/${ARM64_TARBALL}" >> "$GITHUB_ENV"
+          echo "FULL_VERSION=${FULL_VERSION}"         >> "$GITHUB_ENV"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -617,12 +596,10 @@ jobs:
           python3 - << 'PYEOF'
           import re, os
 
-          formula    = "Formula/legionio.rb"
+          formula      = "Formula/legionio.rb"
           full_version = os.environ["FULL_VERSION"]
           arm64_url    = os.environ["ARM64_URL"]
           arm64_sha    = os.environ["ARM64_SHA"]
-          x86_64_url   = os.environ["X86_64_URL"]
-          x86_64_sha   = os.environ["X86_64_SHA"]
 
           with open(formula) as f:
               content = f.read()
@@ -630,7 +607,7 @@ jobs:
           # Update version field
           content = re.sub(r'  version ".*?"', f'  version "{full_version}"', content)
 
-          # Remove flat url/sha256 lines present before Intel support was added
+          # Remove flat url/sha256 lines
           content = re.sub(r'  url "https://.*?"\n  sha256 ".*?"\n', '', content)
 
           # Remove existing on_arm/on_intel blocks (idempotent on re-runs)
@@ -642,10 +619,6 @@ jobs:
               f'    url "{arm64_url}"\n'
               f'    sha256 "{arm64_sha}"\n'
               f'  end\n'
-              f'\n  on_intel do\n'
-              f'    url "{x86_64_url}"\n'
-              f'    sha256 "{x86_64_sha}"\n'
-              f'  end\n'
           )
           content = re.sub(r'(  license "Apache-2\.0"\n)', r'\1' + arch_block, content)
 
@@ -654,7 +627,6 @@ jobs:
 
           print(f"Updated {formula} to {full_version}")
           print(f"  arm64:  {arm64_url}")
-          print(f"  x86_64: {x86_64_url}")
           PYEOF
 
       - name: Commit formula update
