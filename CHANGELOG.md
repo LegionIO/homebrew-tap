@@ -8,6 +8,7 @@
 - Default Python packages expanded: `ruff`, `pylint`, `mypy`, `httpx`, `beautifulsoup4`, `jinja2`
 
 ### Fixed
+- `post_install` CWD crash during `brew upgrade`: old cellar deletion invalidates working directory, causing Thor `Errno::ENOENT` in `reinstall_packs`, `setup_python_venv`, and `background_gem_update` — all now pass `chdir: var/"lib/legion"`
 - `legion-python` and `legion-pip` default venv path changed from `$HOME/.legionio/python` to `libexec/python` (matches actual Cellar install location)
 - `pip install` failures caused by corporate `REQUESTS_CA_BUNDLE` pointing at non-existent `/tmp/system-ca-bundle.pem`
 

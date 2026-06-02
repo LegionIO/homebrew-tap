@@ -300,12 +300,15 @@ class Legionio < Formula
       return
     end
 
+    safe_dir = (var/"lib/legion").to_s
+    Dir.mkdir(safe_dir) unless File.directory?(safe_dir)
+
     venv_dir = libexec/"python"
     if venv_dir.exist?
       ohai "Legion Python venv already exists at #{venv_dir}"
     else
       ohai "Creating Legion Python venv at #{venv_dir}"
-      unless system python3, "-m", "venv", venv_dir.to_s
+      unless system(python3, "-m", "venv", venv_dir.to_s, chdir: safe_dir)
         opoo "Failed to create Python venv — run 'legionio setup python' manually"
         return
       end
@@ -318,7 +321,7 @@ class Legionio < Formula
     end
 
     ohai "Installing Python packages: #{PYTHON_PACKAGES.join(', ')}"
-    unless system pip.to_s, "install", "--quiet", "--upgrade", *PYTHON_PACKAGES
+    unless system(pip.to_s, "install", "--quiet", "--upgrade", *PYTHON_PACKAGES, chdir: safe_dir)
       opoo "Some Python packages failed — run 'legionio setup python' to retry"
     end
 
@@ -344,9 +347,12 @@ class Legionio < Formula
     packs = discover_installed_packs
     return if packs.empty?
 
+    safe_dir = (var/"lib/legion").to_s
+    Dir.mkdir(safe_dir) unless File.directory?(safe_dir)
+
     packs.each do |pack|
       ohai "Reinstalling #{pack} pack after upgrade"
-      unless system bin/"legionio", "setup", pack
+      unless system(bin/"legionio", "setup", pack, chdir: safe_dir)
         opoo "Pack '#{pack}' reinstall failed — run 'legionio setup #{pack}' manually after upgrade"
       end
     end
@@ -376,9 +382,12 @@ class Legionio < Formula
   def background_gem_update
     ohai "Updating legion gems in background"
     log_file = var/"log/legion/post-upgrade-update.log"
+    safe_dir = (var/"lib/legion").to_s
+    Dir.mkdir(safe_dir) unless File.directory?(safe_dir)
     pid = spawn(
       (bin/"legionio").to_s, "update",
       [:out, :err] => [log_file.to_s, "w"],
+      chdir: safe_dir,
       pgroup: true
     )
     ::Process.detach(pid)
