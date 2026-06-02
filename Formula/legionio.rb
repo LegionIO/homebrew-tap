@@ -221,6 +221,13 @@ class Legionio < Formula
                           CURL_CA_BUNDLE:     "#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
   end
 
+  # Homebrew sandbox overrides $HOME during post_install.  Use Etc.getpwuid(Process.uid).dir
+  # to always resolve the real user home regardless of sandbox.
+  def user_home
+    require "etc"
+    Etc.getpwuid(Process.uid).dir
+  end
+
   def post_install
     (var/"lib/legion").mkpath
     Dir.chdir(var/"lib/legion")
@@ -304,7 +311,7 @@ class Legionio < Formula
       return
     end
 
-    venv_dir = Pathname.new(File.expand_path("~/.legionio/python"))
+    venv_dir = Pathname.new(File.join(user_home, ".legionio", "python"))
     if venv_dir.exist?
       ohai "Legion Python venv already exists at #{venv_dir}"
     else
@@ -362,13 +369,13 @@ class Legionio < Formula
     packs = Set.new
 
     # Source 1: marker files from prior `legionio setup <pack>`
-    packs_dir = File.expand_path("~/.legionio/.packs")
+    packs_dir = File.join(user_home, ".legionio", ".packs")
     if File.directory?(packs_dir)
       Dir.children(packs_dir).each { |p| packs << p }
     end
 
     # Source 2: settings file (user-configurable)
-    settings_file = File.expand_path("~/.legionio/settings/packs.json")
+    settings_file = File.join(user_home, ".legionio", "settings", "packs.json")
     if File.exist?(settings_file)
       data = JSON.parse(File.read(settings_file)) rescue {}
       Array(data["packs"]).each { |p| packs << p.to_s }
@@ -421,7 +428,7 @@ class Legionio < Formula
         # This picks up corporate CAs (Zscaler, MDM, etc.) and system root CAs
         # so our bundled Ruby/OpenSSL trusts the same hosts as the rest of macOS.
         # The login keychain is where JAMF/corporate provisioning drops internal CAs.
-        login_keychain = File.expand_path("~/Library/Keychains/login.keychain-db")
+        login_keychain = File.join(user_home, "Library", "Keychains", "login.keychain-db")
         keychains = %w[/Library/Keychains/System.keychain
                        /System/Library/Keychains/SystemRootCertificates.keychain]
         keychains << login_keychain
