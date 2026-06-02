@@ -102,8 +102,8 @@ class Legionio < Formula
       export BUNDLE_GEMFILE=""
       export RUBYOPT=""
       export GEM_SPEC_CACHE="#{gem_dir}/spec_cache"
-      export LEGION_PYTHON_VENV="#{libexec}/python"
-      export LEGION_PYTHON="#{libexec}/python/bin/python3"
+      export LEGION_PYTHON_VENV="${HOME}/.legionio/python"
+      export LEGION_PYTHON="${HOME}/.legionio/python/bin/python3"
       export SSL_CERT_FILE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
       export REQUESTS_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
       export CURL_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
@@ -126,8 +126,8 @@ class Legionio < Formula
       export BUNDLE_GEMFILE=""
       export RUBYOPT=""
       export GEM_SPEC_CACHE="#{gem_dir}/spec_cache"
-      export LEGION_PYTHON_VENV="#{libexec}/python"
-      export LEGION_PYTHON="#{libexec}/python/bin/python3"
+      export LEGION_PYTHON_VENV="${HOME}/.legionio/python"
+      export LEGION_PYTHON="${HOME}/.legionio/python/bin/python3"
       export SSL_CERT_FILE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
       export REQUESTS_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
       export CURL_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
@@ -164,7 +164,7 @@ class Legionio < Formula
       export PYTHONPATH=""
       export PIP_CERT="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
       unset PYTHONHOME
-      VENV="${LEGION_PYTHON_VENV:-#{libexec}/python}"
+      VENV="${LEGION_PYTHON_VENV:-${HOME}/.legionio/python}"
       if [ -x "${VENV}/bin/python3" ]; then
         exec "${VENV}/bin/python3" "$@"
       else
@@ -182,7 +182,7 @@ class Legionio < Formula
       export PYTHONPATH=""
       export PIP_CERT="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
       unset PYTHONHOME
-      VENV="${LEGION_PYTHON_VENV:-#{libexec}/python}"
+      VENV="${LEGION_PYTHON_VENV:-${HOME}/.legionio/python}"
       if [ -x "${VENV}/bin/pip3" ]; then
         exec "${VENV}/bin/pip3" "$@"
       else
@@ -206,22 +206,22 @@ class Legionio < Formula
     working_dir var/"lib/legion"
     log_path var/"log/legion/legion.log"
     error_log_path var/"log/legion/legion.log"
-    environment_variables LANG:              "en_US.UTF-8",
-                          LC_ALL:            "en_US.UTF-8",
-                          GEM_PATH:          "#{libexec}/lib/ruby/gems/3.4.0",
-                          GEM_HOME:          "#{libexec}/lib/ruby/gems/3.4.0",
-                          GEM_SPEC_CACHE:    "#{libexec}/lib/ruby/gems/3.4.0/spec_cache",
-                          RUBYGEMS_GEMDEPS:  "",
-                          BUNDLE_GEMFILE:    "",
-                          RUBYOPT:           "",
-                          LEGION_PYTHON_VENV: "#{libexec}/python",
-                          LEGION_PYTHON:     "#{libexec}/python/bin/python3",
-                          SSL_CERT_FILE:     "#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem",
+    environment_variables LANG:               "en_US.UTF-8",
+                          LC_ALL:             "en_US.UTF-8",
+                          GEM_PATH:           "#{libexec}/lib/ruby/gems/3.4.0",
+                          GEM_HOME:           "#{libexec}/lib/ruby/gems/3.4.0",
+                          GEM_SPEC_CACHE:     "#{libexec}/lib/ruby/gems/3.4.0/spec_cache",
+                          RUBYGEMS_GEMDEPS:   "",
+                          BUNDLE_GEMFILE:     "",
+                          RUBYOPT:            "",
+                          SSL_CERT_FILE:      "#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem",
                           REQUESTS_CA_BUNDLE: "#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem",
-                          CURL_CA_BUNDLE:    "#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+                          CURL_CA_BUNDLE:     "#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
   end
 
   def post_install
+    (var/"lib/legion").mkpath
+    Dir.chdir(var/"lib/legion")
     install_tls_certificates
     reinstall_packs
     setup_python_venv
@@ -302,15 +302,12 @@ class Legionio < Formula
       return
     end
 
-    safe_dir = (var/"lib/legion").to_s
-    Dir.mkdir(safe_dir) unless File.directory?(safe_dir)
-
-    venv_dir = libexec/"python"
+    venv_dir = Pathname.new(File.expand_path("~/.legionio/python"))
     if venv_dir.exist?
       ohai "Legion Python venv already exists at #{venv_dir}"
     else
       ohai "Creating Legion Python venv at #{venv_dir}"
-      unless system(python3, "-m", "venv", venv_dir.to_s, chdir: safe_dir)
+      unless system python3, "-m", "venv", venv_dir.to_s
         opoo "Failed to create Python venv — run 'legionio setup python' manually"
         return
       end
@@ -323,7 +320,7 @@ class Legionio < Formula
     end
 
     ohai "Installing Python packages: #{PYTHON_PACKAGES.join(', ')}"
-    unless system(pip.to_s, "install", "--quiet", "--upgrade", *PYTHON_PACKAGES, chdir: safe_dir)
+    unless system pip.to_s, "install", "--quiet", "--upgrade", *PYTHON_PACKAGES
       opoo "Some Python packages failed — run 'legionio setup python' to retry"
     end
 
@@ -349,12 +346,9 @@ class Legionio < Formula
     packs = discover_installed_packs
     return if packs.empty?
 
-    safe_dir = (var/"lib/legion").to_s
-    Dir.mkdir(safe_dir) unless File.directory?(safe_dir)
-
     packs.each do |pack|
       ohai "Reinstalling #{pack} pack after upgrade"
-      unless system(bin/"legionio", "setup", pack, chdir: safe_dir)
+      unless system bin/"legionio", "setup", pack
         opoo "Pack '#{pack}' reinstall failed — run 'legionio setup #{pack}' manually after upgrade"
       end
     end
@@ -384,12 +378,9 @@ class Legionio < Formula
   def background_gem_update
     ohai "Updating legion gems in background"
     log_file = var/"log/legion/post-upgrade-update.log"
-    safe_dir = (var/"lib/legion").to_s
-    Dir.mkdir(safe_dir) unless File.directory?(safe_dir)
     pid = spawn(
       (bin/"legionio").to_s, "update",
       [:out, :err] => [log_file.to_s, "w"],
-      chdir: safe_dir,
       pgroup: true
     )
     ::Process.detach(pid)
