@@ -9,10 +9,6 @@ class Legionio < Formula
     sha256 "ed00aa571f6a780f3b8b7a28e2cca75574a478a9309cc7774814e87ddaaa9ae4"
   end
 
-  on_intel do
-    url "https://github.com/LegionIO/homebrew-tap/releases/download/legion-1.9.39-5/legion-1.9.39-5-darwin-x86_64.tar.gz"
-    sha256 "eabc3412f48856383b17628449458009c502d353275bea7b03fd081f4f3deef3"
-  end
 
 
 
@@ -355,7 +351,7 @@ class Legionio < Formula
     packs = discover_installed_packs
     return if packs.empty?
 
-    packs.each do |pack|
+    packs.reject { |p| p.to_sym == :'proxy-mode' }.each do |pack|
       ohai "Reinstalling #{pack} pack after upgrade"
       unless system bin/"legionio", "setup", pack
         opoo "Pack '#{pack}' reinstall failed — run 'legionio setup #{pack}' manually after upgrade"
