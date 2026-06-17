@@ -9,27 +9,6 @@ class Legionio < Formula
     sha256 "4e6f8491c2e95bd1a4d249bc5b2abbcc000706940d245762839dcd48f1acca7d"
   end
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   bottle do
     root_url "https://github.com/LegionIO/homebrew-tap/releases/download/bottles-legionio-1.9.41-1"
     sha256 cellar: :any, arm64_sequoia: "a2382606d46964872c96b5b6ce856fbb7f291955c6c9476f7c49fe890a644c11"
@@ -355,7 +334,7 @@ class Legionio < Formula
     packs = discover_installed_packs
     return if packs.empty?
 
-    packs.each do |pack|
+    packs.reject { |p| p.to_sym == :'proxy-mode' }.each do |pack|
       ohai "Reinstalling #{pack} pack after upgrade"
       unless system bin/"legionio", "setup", pack
         opoo "Pack '#{pack}' reinstall failed — run 'legionio setup #{pack}' manually after upgrade"
