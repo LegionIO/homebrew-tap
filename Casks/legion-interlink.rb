@@ -11,7 +11,7 @@ cask "legion-interlink" do
   depends_on formula: "redis"
   depends_on formula: "memcached"
   depends_on formula: "ollama"
-  depends_on macos: ">= :ventura"
+  depends_on macos: :ventura
 
   app "Legion Interlink.app"
 
