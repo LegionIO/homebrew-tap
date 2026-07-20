@@ -1,6 +1,6 @@
 cask "kai" do
-  version "1.0.188"
-  sha256 "9e3e055f588f43f646c68ead27eb5c914fd1b3073734419d15c3bd07eda91039"
+  version "1.0.189"
+  sha256 "c8884f89a19a51f290563ef3edec4ff8e76d00029e7405c252779d590a07885e"
 
   url "https://github.com/LegionIO/kai-desktop/releases/download/v#{version}/Kai.dmg"
   name "Kai"
