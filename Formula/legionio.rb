@@ -89,11 +89,11 @@ class Legionio < Formula
       export GEM_SPEC_CACHE="#{gem_dir}/spec_cache"
       export LEGION_PYTHON_VENV="#{libexec}/python"
       export LEGION_PYTHON="#{libexec}/python/bin/python3"
-      export SSL_CERT_FILE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
-      export REQUESTS_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
-      export CURL_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export SSL_CERT_FILE="#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem"
+      export REQUESTS_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem"
+      export CURL_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem"
       export PYTHONPATH=""
-      export PIP_CERT="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export PIP_CERT="#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem"
       unset PYTHONHOME
       exec "#{libexec}/bin/ruby" "#{libexec}/bin/legionio" "$@"
     BASH
@@ -113,11 +113,11 @@ class Legionio < Formula
       export GEM_SPEC_CACHE="#{gem_dir}/spec_cache"
       export LEGION_PYTHON_VENV="#{libexec}/python"
       export LEGION_PYTHON="#{libexec}/python/bin/python3"
-      export SSL_CERT_FILE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
-      export REQUESTS_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
-      export CURL_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export SSL_CERT_FILE="#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem"
+      export REQUESTS_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem"
+      export CURL_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem"
       export PYTHONPATH=""
-      export PIP_CERT="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export PIP_CERT="#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem"
       unset PYTHONHOME
       exec "#{libexec}/bin/ruby" "#{libexec}/bin/legion" "$@"
     BASH
@@ -143,11 +143,11 @@ class Legionio < Formula
     # Python venv helpers — use the Legion-managed venv interpreter/pip
     (bin/"legion-python").write <<~BASH
       #!/bin/bash
-      export SSL_CERT_FILE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
-      export REQUESTS_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
-      export CURL_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export SSL_CERT_FILE="#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem"
+      export REQUESTS_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem"
+      export CURL_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem"
       export PYTHONPATH=""
-      export PIP_CERT="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export PIP_CERT="#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem"
       unset PYTHONHOME
       VENV="${LEGION_PYTHON_VENV:-#{libexec}/python}"
       if [ -x "${VENV}/bin/python3" ]; then
@@ -161,11 +161,11 @@ class Legionio < Formula
 
     (bin/"legion-pip").write <<~BASH
       #!/bin/bash
-      export SSL_CERT_FILE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
-      export REQUESTS_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
-      export CURL_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export SSL_CERT_FILE="#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem"
+      export REQUESTS_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem"
+      export CURL_CA_BUNDLE="#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem"
       export PYTHONPATH=""
-      export PIP_CERT="#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+      export PIP_CERT="#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem"
       unset PYTHONHOME
       VENV="${LEGION_PYTHON_VENV:-#{libexec}/python}"
       if [ -x "${VENV}/bin/pip3" ]; then
@@ -199,9 +199,9 @@ class Legionio < Formula
                           RUBYGEMS_GEMDEPS:   "",
                           BUNDLE_GEMFILE:     "",
                           RUBYOPT:            "",
-                          SSL_CERT_FILE:      "#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem",
-                          REQUESTS_CA_BUNDLE: "#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem",
-                          CURL_CA_BUNDLE:     "#{HOMEBREW_PREFIX}/etc/openssl@3/cert.pem"
+                          SSL_CERT_FILE:      "#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem",
+                          REQUESTS_CA_BUNDLE: "#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem",
+                          CURL_CA_BUNDLE:     "#{HOMEBREW_PREFIX}/etc/openssl@3/legionio-cert.pem"
   end
 
   # Homebrew sandbox overrides $HOME during post_install.  Use Etc.getpwuid(Process.uid).dir
@@ -478,6 +478,78 @@ class Legionio < Formula
     if needs_rehash
       ohai "Rehashing certificate directory"
       system c_rehash.to_s, cert_dir.to_s
+    end
+
+    rebuild_merged_bundle(cert_dir)
+  end
+
+  # Certificate files imported from the OS trust store (macOS keychains or
+  # the Linux system bundle) by install_tls_certificates.
+  def os_trust_cert_files(cert_dir)
+    if OS.mac?
+      Dir["#{cert_dir}/system-*.pem",
+          "#{cert_dir}/systemrootcertificates-*.pem",
+          "#{cert_dir}/login.keychain-db-*.pem"]
+    else
+      ["#{cert_dir}/system-ca-bundle.pem"]
+    end
+  end
+
+  # Build the merged trust bundle that all legion processes use via
+  # SSL_CERT_FILE/REQUESTS_CA_BUNDLE/CURL_CA_BUNDLE/PIP_CERT.
+  #
+  # homebrew-core's ca-certificates builds cert.pem on a CI machine and,
+  # on macOS, merges that machine's keychain into the bottle. A corporate CA
+  # from there can be a stale generation of a certificate whose subject DN
+  # matches the current one. OpenSSL's by-subject chain lookup then finds
+  # the stale key first and verification of internal VIPs that serve leaf
+  # only fails ("unable to get issuer certificate") even though the current
+  # CA is present in the OS trust store.
+  #
+  # The bundle is therefore: current OS trust-store certificates first (they
+  # win), then the public bundle minus same-subject shadows.
+  def rebuild_merged_bundle(cert_dir)
+    openssl = Formula["openssl@3"].opt_bin/"openssl"
+    public_bundle = HOMEBREW_PREFIX/"etc/openssl@3/cert.pem"
+    merged = HOMEBREW_PREFIX/"etc/openssl@3/legionio-cert.pem"
+    return unless public_bundle.exist?
+
+    require "tmpdir"
+    pem = /-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----/m
+    Dir.mktmpdir("legionio-merged-ca") do |dir|
+      d = Pathname(dir)
+      n = 0
+
+      subject_of = lambda do |cert|
+        cf = d/"c-#{n}.pem"
+        n += 1
+        cf.write(cert)
+        `#{openssl} x509 -in "#{cf}" -noout -subject -nameopt oneline 2>/dev/null`.strip
+      end
+
+      # 1) Current OS trust-store certs (JAMF/MDM-managed corporate PKI).
+      os_certs = os_trust_cert_files(cert_dir)
+                           .select { |f| File.exist?(f) }
+                           .flat_map { |f| File.read(f).scan(pem) }
+      os_certs.uniq!
+      os_subjects = os_certs.filter_map { |c| (s = subject_of.(c)).empty? ? nil : s }
+
+      # 2) Public bundle, minus same-subject shadows of the certs above.
+      kept = 0
+      dropped = 0
+      out = +""
+      File.read(public_bundle).scan(pem).uniq.each do |cert|
+        s = subject_of.(cert)
+        if s.empty? || os_subjects.include?(s)
+          dropped += 1
+        else
+          out << cert << "\n"
+          kept += 1
+        end
+      end
+
+      merged.atomic_write(os_certs.join("\n") + "\n" + out)
+      ohai "Trust bundle #{merged.basename}: #{os_certs.size} system CA(s), #{kept} public CA(s), #{dropped} shadowed duplicate(s) removed"
     end
   end
 
