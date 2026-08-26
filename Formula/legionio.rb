@@ -507,24 +507,43 @@ class Legionio < Formula
   # CA is present in the OS trust store.
   #
   # The bundle is therefore: current OS trust-store certificates first (they
-  # win), then the public bundle minus same-subject shadows.
+  # win), then the public bundle minus exact (subject + key) duplicates.
+  #
+  # Notes on behavior, kept deliberate:
+  # - The OS set is kept verbatim, including both generations of any
+  #   reissued same-subject CA. The stale OS copy remains in the final
+  #   bundle; verification works because the live key is present alongside
+  #   it, not because the stale copy was removed. Do not add subject dedup
+  #   to the OS set — that would re-introduce the bug.
+  # - A public cert is dropped only when an OS cert has the same subject
+  #   AND the same public key, so a live cert that exists only in the
+  #   public bundle can never be discarded.
+  # - The merged file is ALWAYS written (OS-trust-only if the public
+  #   bundle is missing). The bin shims point SSL_CERT_FILE at it
+  #   unconditionally, so a missing file would break all TLS, including
+  #   public hosts — a harder failure than the shadowing this fixes.
   def rebuild_merged_bundle(cert_dir)
     openssl = Formula["openssl@3"].opt_bin/"openssl"
     public_bundle = HOMEBREW_PREFIX/"etc/openssl@3/cert.pem"
     merged = HOMEBREW_PREFIX/"etc/openssl@3/legionio-cert.pem"
-    return unless public_bundle.exist?
 
     require "tmpdir"
+    require "digest"
     pem = /-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----/m
     Dir.mktmpdir("legionio-merged-ca") do |dir|
       d = Pathname(dir)
       n = 0
 
-      subject_of = lambda do |cert|
+      # Dedup key: subject DN + SHA256 of the public key (SPKI material).
+      # Empty subject (unreadable cert) yields a key that can never match.
+      key_of = lambda do |cert|
         cf = d/"c-#{n}.pem"
         n += 1
         cf.write(cert)
-        `#{openssl} x509 -in "#{cf}" -noout -subject -nameopt oneline 2>/dev/null`.strip
+        subject = `#{openssl} x509 -in "#{cf}" -noout -subject -nameopt oneline 2>/dev/null`.strip
+        pubkey = `#{openssl} x509 -in "#{cf}" -noout -pubkey 2>/dev/null`
+        key = subject.empty? ? "" : subject + "|" + Digest::SHA256.hexdigest(pubkey)
+        key
       end
 
       # 1) Current OS trust-store certs (JAMF/MDM-managed corporate PKI).
@@ -532,24 +551,26 @@ class Legionio < Formula
                            .select { |f| File.exist?(f) }
                            .flat_map { |f| File.read(f).scan(pem) }
       os_certs.uniq!
-      os_subjects = os_certs.filter_map { |c| (s = subject_of.(c)).empty? ? nil : s }
+      os_keys = os_certs.filter_map { |c| (k = key_of.(c)).empty? ? nil : k }
 
-      # 2) Public bundle, minus same-subject shadows of the certs above.
+      # 2) Public bundle, minus exact (subject + key) duplicates above.
       kept = 0
       dropped = 0
       out = +""
-      File.read(public_bundle).scan(pem).uniq.each do |cert|
-        s = subject_of.(cert)
-        if s.empty? || os_subjects.include?(s)
-          dropped += 1
-        else
-          out << cert << "\n"
-          kept += 1
+      if public_bundle.exist?
+        File.read(public_bundle).scan(pem).uniq.each do |cert|
+          k = key_of.(cert)
+          if k.empty? || os_keys.include?(k)
+            dropped += 1
+          else
+            out << cert << "\n"
+            kept += 1
+          end
         end
       end
 
-      merged.atomic_write(os_certs.join("\n") + "\n" + out)
-      ohai "Trust bundle #{merged.basename}: #{os_certs.size} system CA(s), #{kept} public CA(s), #{dropped} shadowed duplicate(s) removed"
+      merged.atomic_write(os_certs.join("\n") + (os_certs.empty? ? "" : "\n") + out)
+      ohai "Trust bundle #{merged.basename}: #{os_certs.size} system CA(s), #{kept} public CA(s), #{dropped} duplicate(s) removed"
     end
   end
 
