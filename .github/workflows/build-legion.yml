@@ -104,7 +104,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Cache compiled Ruby
         uses: actions/cache@v4
@@ -572,7 +572,7 @@ jobs:
     runs-on: macos-14
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download tarball and compute SHA256
         run: |
